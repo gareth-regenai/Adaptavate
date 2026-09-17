@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How It Works: Front End to Spreadsheet and Back</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  :root{
+    --bg1:#111827; --bg2:#1F2937; --bg3:#0B0F17;
+    --line:#374151; --ink:#F3F4F6; --soft:#9CA3AF; --faint:#6B7280;
+    --card:#1B2433;
+    --blue:#3B82F6; --blue-tx:#93C5FD; --blue-bg:rgba(30,58,138,.28);
+    --amber:#F59E0B; --amber-tx:#FCD34D; --amber-bg:rgba(120,53,15,.28);
+    --green:#22C55E; --green-tx:#86EFAC; --green-bg:rgba(20,83,45,.30);
+    --pink:#EC4899; --pink-tx:#F9A8D4;
+    --red:#EF4444; --red-bg:rgba(127,29,29,.3);
+    --ga:#4ADE80; --gb:#22D3EE;
+  }
+  body{
+    background:linear-gradient(to bottom right,var(--bg1),var(--bg2) 45%,var(--bg1));
+    color:var(--ink); font-family:'IBM Plex Sans',sans-serif; min-height:100vh;
+    padding:22px clamp(14px,3vw,34px) 60px; -webkit-font-smoothing:antialiased;
+  }
+  .num,.mono{font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;}
+  h1{font-family:'Space Grotesk',sans-serif; font-size:clamp(21px,2.6vw,30px); font-weight:600;
+     background:linear-gradient(to right,#fff 0%,#fff 48%,var(--ga) 74%,var(--gb) 100%);
+     -webkit-background-clip:text;background-clip:text;color:transparent;}
+  .sub{color:var(--soft); font-size:14px; margin-top:4px;}
+
+  /* controls */
+  .bar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:18px 0 14px;
+       background:var(--card); border:1px solid var(--line); padding:12px 14px;}
+  .btn{font-family:'IBM Plex Sans',sans-serif; font-size:13px; font-weight:600; padding:9px 16px;
+       border:none; cursor:pointer; background:var(--bg3); color:var(--ink); border:1px solid var(--line);}
+  .btn.primary{background:linear-gradient(to right,var(--ga),var(--gb)); color:#04140F; border-color:transparent;}
+  .btn:disabled{opacity:.4; cursor:default;}
+  .stepLbl{flex:1; min-width:240px; font-size:13.5px; color:var(--soft);}
+  .stepLbl b{color:var(--ink);}
+  .prog{height:3px; background:var(--line); margin-bottom:20px;}
+  .prog > span{display:block; height:100%; width:0%;
+       background:linear-gradient(to right,var(--ga),var(--gb)); transition:width .4s ease;}
+
+  /* stage */
+  .stage{display:grid; grid-template-columns:1fr 130px 1.25fr; gap:0; align-items:start;}
+  @media(max-width:1000px){.stage{grid-template-columns:1fr; gap:14px;}}
+
+  .panel{background:var(--card); border:1px solid var(--line); padding:16px 18px;}
+  .panelHd{font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--soft);
+           margin-bottom:14px; display:flex; align-items:center; gap:8px;}
+  .dot{width:7px;height:7px;flex-shrink:0;}
+
+  /* browser side */
+  .browserChrome{display:flex; gap:5px; align-items:center; margin-bottom:12px;}
+  .cdot{width:9px;height:9px;border-radius:50%;background:var(--line);}
+  .urlbar{flex:1; background:var(--bg3); border:1px solid var(--line); font-size:10.5px;
+          color:var(--faint); padding:4px 8px; font-family:'IBM Plex Mono',monospace;}
+  .fieldRow{margin-bottom:11px;}
+  .fieldRow label{display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px;}
+  .fieldRow .v{font-family:'Space Grotesk',sans-serif; font-weight:600; color:var(--ga);}
+  .track{height:4px; background:var(--line); position:relative;}
+  .fill{height:100%; background:linear-gradient(to right,var(--ga),var(--gb)); width:33%;}
+  .thumb{position:absolute; top:-6px; width:15px; height:15px; border-radius:50%;
+         background:linear-gradient(135deg,var(--ga),var(--gb)); border:2px solid var(--bg1);
+         transform:translateX(-50%); transition:left .8s cubic-bezier(.4,0,.2,1);}
+  .fieldRow.hot label .v{color:#fff; text-shadow:0 0 12px var(--gb);}
+  .fieldRow.hot .track{box-shadow:0 0 0 3px rgba(34,211,238,.18);}
+
+  .kpiMini{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px;}
+  .kpi{background:var(--bg3); border:1px solid var(--line); padding:10px 11px; transition:.35s;}
+  .kpi .kl{font-size:9.5px; letter-spacing:1.3px; text-transform:uppercase; color:var(--soft); margin-bottom:5px;}
+  .kpi .kv{font-family:'Space Grotesk',sans-serif; font-size:17px; font-weight:600;}
+  .kpi.upd{border-color:var(--ga); box-shadow:0 0 18px rgba(74,222,128,.22);}
+  .kpi.upd .kv{color:var(--ga);}
+  .stale{opacity:.35; transition:opacity .3s;}
+
+  /* middle: the wire */
+  .wire{position:relative; height:100%; min-height:430px; display:flex; flex-direction:column;
+        align-items:center; justify-content:center;}
+  @media(max-width:1000px){.wire{min-height:150px;}}
+  .wireLine{position:absolute; top:26px; bottom:26px; left:50%; width:2px; margin-left:-1px;
+            background:repeating-linear-gradient(to bottom,rgba(239,68,68,.55) 0 6px,transparent 6px 13px);}
+  .boundary{position:absolute; top:6px; font-size:9px; letter-spacing:1.6px; text-transform:uppercase;
+            color:var(--red); text-align:center; width:120px; line-height:1.5;}
+  .packet{position:absolute; left:50%; transform:translateX(-50%);
+          background:var(--bg3); border:1px solid var(--gb); padding:9px 9px;
+          font-family:'IBM Plex Mono',monospace; font-size:9px; line-height:1.5; color:var(--gb);
+          opacity:0; transition:all .1s; z-index:5; width:122px; text-align:left;
+          word-break:break-word; box-shadow:0 0 22px rgba(34,211,238,.25);}
+  .packet.show{opacity:1;}
+  .packet.req{border-color:var(--gb); color:var(--gb);}
+  .packet.res{border-color:var(--ga); color:var(--ga); box-shadow:0 0 22px rgba(74,222,128,.25);}
+  .blockNote{position:absolute; bottom:6px; width:124px; font-size:9.5px; color:var(--red);
+             text-align:center; line-height:1.45; opacity:0; transition:opacity .5s;}
+  .blockNote.show{opacity:1;}
+
+  /* server side */
+  .serverBox{border:1px solid var(--line); background:var(--bg3); padding:14px 15px;}
+  .sheetTabs{display:flex; gap:2px; margin-bottom:0;}
+  .stab{font-size:10.5px; padding:6px 11px; background:var(--bg1); border:1px solid var(--line);
+        border-bottom:none; color:var(--soft); font-weight:500;}
+  .stab.on{background:var(--card); color:var(--ink);}
+  .stab.secret{color:var(--red); border-color:rgba(239,68,68,.35);}
+  .grid{border:1px solid var(--line); background:var(--card);}
+  .gRow{display:grid; grid-template-columns:36px 1.4fr 84px; border-bottom:1px solid var(--line);
+        font-size:11px; transition:background .3s, box-shadow .3s;}
+  .gRow:last-child{border-bottom:none;}
+  .gRow.hdr{background:var(--bg3); color:var(--soft); font-size:9.5px; letter-spacing:1.2px; text-transform:uppercase;}
+  .gc{padding:6px 8px; border-right:1px solid var(--line); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .gc:last-child{border-right:none;}
+  .gc.rn{color:var(--faint); text-align:center; font-family:'IBM Plex Mono',monospace; font-size:9.5px;}
+  .gc.val{font-family:'IBM Plex Mono',monospace; text-align:right; color:var(--ink);}
+  .gc.fx{font-family:'IBM Plex Mono',monospace; color:var(--amber-tx); font-size:10px;}
+  .gRow.write{background:rgba(34,211,238,.16); box-shadow:inset 3px 0 0 var(--gb);}
+  .gRow.calc{background:rgba(245,158,11,.14); box-shadow:inset 3px 0 0 var(--amber);}
+  .gRow.done{background:rgba(34,197,94,.13); box-shadow:inset 3px 0 0 var(--green);}
+  .gRow.read{background:rgba(74,222,128,.2); box-shadow:inset 3px 0 0 var(--ga);}
+  .secretBanner{background:var(--red-bg); border:1px solid rgba(239,68,68,.4); padding:7px 10px;
+                font-size:10px; color:#FCA5A5; margin-bottom:8px; letter-spacing:.3px;}
+  .srvState{font-size:11px; color:var(--soft); margin-top:10px; min-height:34px; line-height:1.5;}
+  .srvState b{color:var(--ga);}
+  .tick{color:var(--ga);}
+
+  .legend{display:flex; gap:16px; flex-wrap:wrap; margin-top:20px; padding-top:16px;
+          border-top:1px solid var(--line); font-size:11.5px; color:var(--soft);}
+  .lg{display:flex; align-items:center; gap:6px;}
+  .sw{width:11px; height:11px;}
+  .footnote{margin-top:18px; font-size:12px; color:var(--faint); max-width:860px; line-height:1.6;}
+</style>
+</head>
+<body>
+
+<h1>Front end to spreadsheet, and back</h1>
+<p class="sub">One round trip, step by step. The partner moves the conversion slider from 40% to 68%. Every figure shown is a real output from the working build.</p>
+
+<div class="bar">
+  <button class="btn primary" id="play">Play</button>
+  <button class="btn" id="step">Step</button>
+  <button class="btn" id="reset">Reset</button>
+  <div class="stepLbl" id="lbl"><b>Ready.</b> Press Play to watch the whole round trip, or Step to go one stage at a time.</div>
+</div>
+<div class="prog"><span id="prog"></span></div>
+
+<div class="stage">
+
+  <!-- ================= BROWSER ================= -->
+  <div class="panel">
+    <div class="panelHd"><span class="dot" style="background:var(--gb)"></span>Partner's browser</div>
+    <div class="browserChrome">
+      <span class="cdot"></span><span class="cdot"></span><span class="cdot"></span>
+      <span class="urlbar">engine.adaptavate.com</span>
+    </div>
+
+    <div class="fieldRow" id="fConv">
+      <label><span>Line conversion level</span><span class="v" id="vConv">40%</span></label>
+      <div class="track"><div class="fill" id="fillConv" style="width:33%"></div>
+        <div class="thumb" id="thumbConv" style="left:33%"></div></div>
+    </div>
+    <div class="fieldRow">
+      <label><span>Biochar inclusion rate</span><span class="v">15%</span></label>
+      <div class="track"><div class="fill" style="width:40%"></div><div class="thumb" style="left:40%"></div></div>
+    </div>
+    <div class="fieldRow">
+      <label><span>Carbon credit price</span><span class="v">£120</span></label>
+      <div class="track"><div class="fill" style="width:16%"></div><div class="thumb" style="left:16%"></div></div>
+    </div>
+
+    <div class="kpiMini" id="kpis">
+      <div class="kpi" data-k="cdr"><div class="kl">CO₂ removed</div><div class="kv"><span class="n">2,730</span> t</div></div>
+      <div class="kpi" data-k="gas"><div class="kl">Gas displaced</div><div class="kv"><span class="n">8,550</span></div></div>
+      <div class="kpi" data-k="capex"><div class="kl">Capex</div><div class="kv">£<span class="n">1,976,000</span></div></div>
+      <div class="kpi" data-k="npv"><div class="kl">NPV</div><div class="kv">£<span class="n">1,059,641</span></div></div>
+      <div class="kpi" data-k="pay"><div class="kl">Payback</div><div class="kv"><span class="n">4.4</span> yrs</div></div>
+      <div class="kpi" data-k="carbon"><div class="kl">Board carbon</div><div class="kv"><span class="n">5.08</span></div></div>
+    </div>
+  </div>
+
+  <!-- ================= THE WIRE ================= -->
+  <div class="wire">
+    <div class="wireLine"></div>
+    <div class="boundary">security<br>boundary</div>
+    <div class="packet req" id="pkReq"></div>
+    <div class="packet res" id="pkRes"></div>
+    <div class="blockNote" id="blocked">formulas never<br>cross this line</div>
+  </div>
+
+  <!-- ================= SERVER ================= -->
+  <div class="panel">
+    <div class="panelHd"><span class="dot" style="background:var(--amber)"></span>Server, the partner cannot see any of this</div>
+    <div class="serverBox">
+      <div class="sheetTabs">
+        <div class="stab on" id="tabIn">Inputs</div>
+        <div class="stab secret" id="tabCalc">Calcs (IP)</div>
+        <div class="stab" id="tabOut">Outputs</div>
+      </div>
+
+      <!-- INPUTS SHEET -->
+      <div class="grid" id="gridIn">
+        <div class="gRow hdr"><div class="gc rn">#</div><div class="gc">Named range</div><div class="gc val">Value</div></div>
+        <div class="gRow" data-in="cap"><div class="gc rn">B5</div><div class="gc">in_plant_capacity</div><div class="gc val">5000000</div></div>
+        <div class="gRow" data-in="gas"><div class="gc rn">B6</div><div class="gc">in_gas_consumption</div><div class="gc val">9.5</div></div>
+        <div class="gRow" data-in="conv"><div class="gc rn">B7</div><div class="gc">in_line_conversion</div><div class="gc val" id="cellConv">40</div></div>
+        <div class="gRow" data-in="bio"><div class="gc rn">B8</div><div class="gc">in_biochar_rate</div><div class="gc val">15</div></div>
+        <div class="gRow" data-in="price"><div class="gc rn">B9</div><div class="gc">in_carbon_price</div><div class="gc val">120</div></div>
+      </div>
+
+      <!-- CALCS SHEET -->
+      <div class="secretBanner" style="margin-top:10px;">Calcs sheet, Adaptavate's model. Runs here only.</div>
+      <div class="grid" id="gridCalc">
+        <div class="gRow hdr"><div class="gc rn">#</div><div class="gc">Formula</div><div class="gc val">Result</div></div>
+        <div class="gRow" data-c="1"><div class="gc rn">B1</div><div class="gc fx">=in_line_conversion/100</div><div class="gc val" data-r="1">0.40</div></div>
+        <div class="gRow" data-c="3"><div class="gc rn">B3</div><div class="gc fx">=in_plant_capacity*B1</div><div class="gc val" data-r="3">2,000,000</div></div>
+        <div class="gRow" data-c="4"><div class="gc rn">B4</div><div class="gc fx">=…*B1*B2*0.00065/yield</div><div class="gc val" data-r="4">195.0</div></div>
+        <div class="gRow" data-c="7"><div class="gc rn">B7</div><div class="gc fx">=(…*gas*B1*0.45/1000)*38</div><div class="gc val" data-r="7">324,900</div></div>
+        <div class="gRow" data-c="8"><div class="gc rn">B8</div><div class="gc fx">=(…*B1*B2*0.0091*carbon)*price</div><div class="gc val" data-r="8">327,600</div></div>
+      </div>
+
+      <!-- OUTPUTS SHEET -->
+      <div class="grid" id="gridOut" style="margin-top:10px;">
+        <div class="gRow hdr"><div class="gc rn">#</div><div class="gc">Named range</div><div class="gc val">Value</div></div>
+        <div class="gRow" data-o="cdr"><div class="gc rn">B7</div><div class="gc">out_cdr_tonnes</div><div class="gc val" data-ov="cdr">2730</div></div>
+        <div class="gRow" data-o="gas"><div class="gc rn">B3</div><div class="gc">out_gas_mwh</div><div class="gc val" data-ov="gas">8550</div></div>
+        <div class="gRow" data-o="capex"><div class="gc rn">B8</div><div class="gc">out_capex</div><div class="gc val" data-ov="capex">1976000</div></div>
+        <div class="gRow" data-o="npv"><div class="gc rn">B13</div><div class="gc">out_npv</div><div class="gc val" data-ov="npv">1059641</div></div>
+      </div>
+
+      <div class="srvState" id="srv">Idle. Workbook loaded in memory, waiting for a request.</div>
+    </div>
+  </div>
+</div>
+
+<div class="legend">
+  <div class="lg"><span class="sw" style="background:var(--gb)"></span>value being written in</div>
+  <div class="lg"><span class="sw" style="background:var(--amber)"></span>formula recalculating</div>
+  <div class="lg"><span class="sw" style="background:var(--green)"></span>recalculated</div>
+  <div class="lg"><span class="sw" style="background:var(--ga)"></span>result being read out</div>
+  <div class="lg"><span class="sw" style="background:var(--red)"></span>never leaves the server</div>
+</div>
+
+<p class="footnote">
+  The Calcs sheet is the whole point of this architecture. It is where Adaptavate's real formulas live,
+  it runs only on the server, and nothing in it is ever included in the response. The browser receives
+  twelve finished numbers and has no way to work backwards to the model that produced them. Timings in
+  the animation are slowed for legibility, the real round trip measured 16ms.
+</p>
+
+<script>
+(function(){
+  var BEFORE = {conv:40, cdr:'2,730', gas:'8,550', capex:'1,976,000', npv:'1,059,641', pay:'4.4', carbon:'5.08'};
+  var AFTER  = {conv:68, cdr:'4,641', gas:'14,535', capex:'2,267,200', npv:'3,668,404', pay:'2.6', carbon:'4.16'};
+  var CALC_BEFORE = {1:'0.40', 3:'2,000,000', 4:'195.0', 7:'324,900', 8:'327,600'};
+  var CALC_AFTER  = {1:'0.68', 3:'3,400,000', 4:'331.5', 7:'552,330', 8:'556,920'};
+  var OUT_BEFORE = {cdr:'2730', gas:'8550', capex:'1976000', npv:'1059641'};
+  var OUT_AFTER  = {cdr:'4641', gas:'14535', capex:'2267200', npv:'3668404'};
+
+  var $ = function(id){ return document.getElementById(id); };
+  var q = function(s){ return document.querySelectorAll(s); };
+  var timers = [];
+  function after(ms, fn){ timers.push(setTimeout(fn, ms)); }
+  function clearAll(){ timers.forEach(clearTimeout); timers = []; }
+
+  function clearRows(){
+    q('.gRow').forEach(function(r){ r.classList.remove('write','calc','done','read'); });
+  }
+  function setPacket(el, text, topPct, cls){
+    el.textContent = text; el.style.whiteSpace = 'pre-line';
+    el.style.top = topPct + '%';
+    el.className = 'packet ' + cls + ' show';
+  }
+
+  var STEPS = [
+    { lbl:'<b>1. Partner drags the slider.</b> Nothing has left the browser yet. The old numbers are still on screen.',
+      run:function(){
+        $('vConv').textContent = '68%';
+        $('fillConv').style.width = '64%';
+        $('thumbConv').style.left = '64%';
+        $('fConv').classList.add('hot');
+        $('kpis').classList.add('stale');
+        $('srv').innerHTML = 'Idle. Nothing received yet.';
+      }},
+
+    { lbl:'<b>2. A short pause.</b> The browser waits 250ms before sending, so dragging a slider fires one request, not fifty.',
+      run:function(){
+        $('srv').innerHTML = 'Idle. Browser is debouncing.';
+      }},
+
+    { lbl:'<b>3. The request crosses the boundary.</b> Eight plain numbers. Note what is not in it: no factors, no coefficients. "wheat" goes as the word wheat.',
+      run:function(){
+        setPacket($('pkReq'), 'conversion: 68\ncapacity: 5000000\nbiochar: 15 …', 12, 'req');
+        after(60, function(){ $('pkReq').style.transition = 'top 1.5s cubic-bezier(.4,0,.2,1)'; $('pkReq').style.top = '42%'; });
+        $('srv').innerHTML = 'Request received.';
+      }},
+
+    { lbl:'<b>4. The server checks the numbers.</b> Range, type, and sign. A negative capacity would be rejected here with a 400, before the workbook is touched.',
+      run:function(){
+        $('pkReq').classList.remove('show');
+        $('srv').innerHTML = '<span class="tick">✓</span> validated: 8 fields, all within range.';
+      }},
+
+    { lbl:'<b>5. Values written into the Inputs sheet.</b> Found by named range, not by cell coordinate. This is why an inserted row cannot break it.',
+      run:function(){
+        $('tabIn').classList.add('on'); $('tabCalc').classList.remove('on'); $('tabOut').classList.remove('on');
+        q('#gridIn .gRow[data-in]').forEach(function(r, i){
+          after(i*130, function(){ r.classList.add('write'); });
+        });
+        after(400, function(){ $('cellConv').textContent = '68'; });
+        $('srv').innerHTML = 'Writing 8 values into named input cells…';
+      }},
+
+    { lbl:'<b>6. The spreadsheet recalculates.</b> Adaptavate\'s own formulas run, in dependency order, on the server. We never retyped this maths into code.',
+      run:function(){
+        clearRows();
+        $('tabCalc').classList.add('on');
+        var rows = q('#gridCalc .gRow[data-c]');
+        rows.forEach(function(r, i){
+          var id = r.getAttribute('data-c');
+          after(i*260, function(){
+            r.classList.add('calc');
+            r.querySelector('[data-r]').textContent = CALC_AFTER[id];
+          });
+          after(i*260 + 200, function(){ r.classList.remove('calc'); r.classList.add('done'); });
+        });
+        $('srv').innerHTML = 'Recalculating dependency chain…';
+        after(1500, function(){ $('srv').innerHTML = '<span class="tick">✓</span> recalculated in 16ms.'; });
+      }},
+
+    { lbl:'<b>7. Only the output cells are read.</b> Twelve named cells. The Calcs sheet is not read, not serialised, not mentioned.',
+      run:function(){
+        $('tabOut').classList.add('on');
+        q('#gridOut .gRow[data-o]').forEach(function(r, i){
+          var kk = r.getAttribute('data-o');
+          after(i*150, function(){
+            r.classList.add('read');
+            r.querySelector('[data-ov]').textContent = OUT_AFTER[kk];
+          });
+        });
+        $('blocked').classList.add('show');
+        $('srv').innerHTML = 'Reading 12 output cells. Calcs sheet excluded.';
+      }},
+
+    { lbl:'<b>8. The response travels back.</b> Twelve finished numbers and nothing else. No working, no intermediate values, no formulas.',
+      run:function(){
+        setPacket($('pkRes'), 'cdr: 4641\nnpv: 3668404\ncapex: 2267200 …', 78, 'res');
+        after(60, function(){ $('pkRes').style.transition = 'top 1.5s cubic-bezier(.4,0,.2,1)'; $('pkRes').style.top = '46%'; });
+        $('srv').innerHTML = '<span class="tick">✓</span> response sent: 12 values.';
+      }},
+
+    { lbl:'<b>9. The dashboard updates.</b> Total elapsed in the real build: 16ms. The partner experiences it as instant.',
+      run:function(){
+        $('pkRes').classList.remove('show');
+        $('kpis').classList.remove('stale');
+        q('#kpis .kpi').forEach(function(el, i){
+          var kk = el.getAttribute('data-k');
+          after(i*90, function(){
+            el.classList.add('upd');
+            el.querySelector('.n').textContent = AFTER[kk];
+          });
+          after(i*90 + 1100, function(){ el.classList.remove('upd'); });
+        });
+        after(900, function(){ clearRows(); });
+      }},
+
+    { lbl:'<b>Done.</b> The partner saw twelve numbers change. Adaptavate\'s model never left the server, and the browser has no route back to it.',
+      run:function(){
+        $('fConv').classList.remove('hot');
+        $('srv').innerHTML = 'Idle. Workbook still in memory, ready for the next request.';
+      }}
+  ];
+
+  var i = 0, playing = false;
+
+  function render(){
+    $('prog').style.width = (i / STEPS.length * 100) + '%';
+  }
+
+  function doStep(){
+    if(i >= STEPS.length){ return false; }
+    var s = STEPS[i];
+    $('lbl').innerHTML = s.lbl;
+    s.run();
+    i++;
+    render();
+    return true;
+  }
+
+  function reset(){
+    clearAll(); playing = false; i = 0;
+    $('play').textContent = 'Play'; $('play').disabled = false; $('step').disabled = false;
+    clearRows();
+    $('vConv').textContent = BEFORE.conv + '%';
+    $('fillConv').style.width = '33%';
+    $('thumbConv').style.left = '33%';
+    $('fConv').classList.remove('hot');
+    $('cellConv').textContent = BEFORE.conv;
+    $('kpis').classList.remove('stale');
+    Object.keys(CALC_BEFORE).forEach(function(kk){
+      document.querySelector('[data-r="'+kk+'"]').textContent = CALC_BEFORE[kk];
+    });
+    Object.keys(OUT_BEFORE).forEach(function(kk){
+      document.querySelector('[data-ov="'+kk+'"]').textContent = OUT_BEFORE[kk];
+    });
+    q('#kpis .kpi').forEach(function(el){
+      el.classList.remove('upd');
+      el.querySelector('.n').textContent = BEFORE[el.getAttribute('data-k')];
+    });
+    ['pkReq','pkRes'].forEach(function(id){
+      var p = $(id); p.className = 'packet'; p.style.transition = 'none'; p.style.top = '';
+    });
+    $('blocked').classList.remove('show');
+    $('tabIn').classList.add('on'); $('tabCalc').classList.remove('on'); $('tabOut').classList.remove('on');
+    $('srv').innerHTML = 'Idle. Workbook loaded in memory, waiting for a request.';
+    $('lbl').innerHTML = '<b>Ready.</b> Press Play to watch the whole round trip, or Step to go one stage at a time.';
+    render();
+  }
+
+  function autoplay(){
+    if(!playing) return;
+    if(!doStep()){
+      playing = false; $('play').textContent = 'Replay'; $('step').disabled = false;
+      return;
+    }
+    var wait = [900, 900, 1900, 1000, 1200, 2100, 1100, 1900, 1700, 1200][i-1] || 1200;
+    after(wait, autoplay);
+  }
+
+  $('play').addEventListener('click', function(){
+    if(i >= STEPS.length) reset();
+    playing = true; $('play').textContent = 'Playing…'; $('play').disabled = true; $('step').disabled = true;
+    autoplay();
+  });
+  $('step').addEventListener('click', function(){
+    clearAll();
+    if(i >= STEPS.length){ reset(); return; }
+    doStep();
+    if(i >= STEPS.length) $('play').textContent = 'Replay';
+  });
+  $('reset').addEventListener('click', reset);
+
+  reset();
+})();
+</script>
+</body>
+</html>

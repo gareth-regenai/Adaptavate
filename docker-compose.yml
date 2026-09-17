@@ -1,0 +1,35 @@
+# Local development. One command:
+#
+#     docker compose up
+#
+# Then open http://localhost:8000
+
+services:
+  engine:
+    build:
+      context: .
+      # Switch to "full" if Adaptavate's workbook needs the LibreOffice backend.
+      target: lean
+    container_name: adaptavate-bbe
+    ports:
+      - "8000:8000"
+
+    volumes:
+      # Adaptavate's workbook lives on YOUR machine, mounted read-only. It is
+      # never copied into the image, so it cannot leak into a pushed image.
+      - ./model:/app/model:ro
+      # Live-reload the code during development. Comment these out to test
+      # exactly what will deploy.
+      - ./app:/app/app:ro
+      - ./web:/app/web:ro
+
+    environment:
+      ENVIRONMENT: development
+      CALC_BACKEND: "${CALC_BACKEND:-formulas}"
+      WORKBOOK_PATH: "/app/model/${WORKBOOK_FILE:-Adaptavate-BBE-TEST-model.xlsx}"
+      # Real tokens belong in .env, which is gitignored. This file is not.
+      ACCESS_TOKENS: "${ACCESS_TOKENS:-dev-partner-token}"
+      INTERNAL_TOKENS: "${INTERNAL_TOKENS:-dev-internal-token}"
+
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    restart: unless-stopped

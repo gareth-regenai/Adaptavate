@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Biomass-to-Board Engine — Phase 1 Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg1:#111827; --bg2:#1F2937; --bg3:#0B0F17;
+    --line:#374151; --ink:#F3F4F6; --ink-soft:#9CA3AF; --ink-faint:#6B7280;
+    --card:#1B2433; --card2:#1A2130;
+
+    --blue:#3B82F6;   --blue-bg:rgba(30,58,138,.28);   --blue-bd:rgba(59,130,246,.4);   --blue-tx:#93C5FD;
+    --amber:#F59E0B;  --amber-bg:rgba(120,53,15,.28);  --amber-bd:rgba(245,158,11,.4);  --amber-tx:#FCD34D;
+    --green:#22C55E;  --green-bg:rgba(20,83,45,.30);   --green-bd:rgba(34,197,94,.4);   --green-tx:#86EFAC;
+    --purple:#9333EA; --purple-bg:rgba(88,28,135,.28); --purple-bd:rgba(147,51,234,.4); --purple-tx:#D8B4FE;
+    --pink:#EC4899;   --pink-bg:rgba(131,24,67,.28);   --pink-bd:rgba(236,72,153,.4);   --pink-tx:#F9A8D4;
+    --red:#EF4444;    --red-bg:rgba(127,29,29,.28);    --red-bd:rgba(239,68,68,.4);     --red-tx:#FCA5A5;
+
+    --grad-a:#4ADE80; --grad-b:#22D3EE;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background: linear-gradient(to bottom right, var(--bg1), var(--bg2) 45%, var(--bg1));
+    color: var(--ink); font-family:'IBM Plex Sans', sans-serif; line-height:1.5;
+    -webkit-font-smoothing:antialiased; min-height:100vh;
+  }
+  .num,.metricValue,.flowVal,.heroKpiVal{ font-family:'Space Grotesk',sans-serif; font-variant-numeric:tabular-nums; }
+  a{ color:inherit; }
+
+  header{
+    padding:30px clamp(18px,4vw,48px) 22px; border-bottom:1px solid var(--line);
+    display:flex; justify-content:space-between; align-items:flex-end; gap:20px; flex-wrap:wrap;
+  }
+  .brandRow{ display:flex; flex-direction:column; gap:6px; }
+  .wordmark{ font-size:12.5px; letter-spacing:.16em; color:var(--ink-soft); font-weight:500; }
+  h1{
+    font-family:'Space Grotesk',sans-serif; font-size:clamp(26px,3.4vw,38px); font-weight:600; margin:0; letter-spacing:-.01em;
+    background: linear-gradient(to right, #fff 0%, #fff 55%, var(--grad-a) 78%, var(--grad-b) 100%);
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .subhead{ color:var(--ink-soft); font-size:14.5px; margin:0; }
+
+  .modeSwitch{ display:flex; align-items:center; gap:4px; background:var(--card); border:1px solid var(--line); border-radius:999px; padding:4px; }
+  .modeSwitch button{ font-family:'IBM Plex Sans',sans-serif; font-size:13px; font-weight:500; padding:9px 16px; border-radius:999px; border:none; background:transparent; color:var(--ink-soft); cursor:pointer; transition:.25s ease; }
+  .modeSwitch button.active{ background: linear-gradient(to right, var(--grad-a), var(--grad-b)); color:#04140F; }
+
+  .introRow{ display:flex; gap:14px; flex-wrap:wrap; padding:22px clamp(18px,4vw,48px); border-bottom:1px solid var(--line); }
+  .introCard{ flex:1; min-width:220px; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .introCard.warn{ background:var(--amber-bg); border-color:var(--amber-bd); }
+  .introCard .ik{ font-size:12px; font-weight:600; margin:0 0 4px; color:var(--ink); display:flex; align-items:center; gap:6px; }
+  .introCard.warn .ik{ color:var(--amber-tx); }
+  .introCard .iv{ font-size:12.5px; color:var(--ink-soft); margin:0; }
+  .introCard.warn .iv{ color:#FDE9C7; }
+
+  main{ display:grid; grid-template-columns:minmax(300px,370px) 1fr; gap:0; align-items:start; }
+  @media (max-width:920px){ main{ grid-template-columns:1fr; } }
+
+  .controlPanel{ padding:28px clamp(18px,3vw,32px) 40px; border-right:1px solid var(--line); position:sticky; top:0; }
+  @media (max-width:920px){ .controlPanel{ border-right:none; border-bottom:1px solid var(--line); position:static; } }
+
+  .panelLabel{ font-size:12px; letter-spacing:.08em; color:var(--ink-soft); margin:0 0 20px; text-transform:uppercase; }
+
+  .field{ margin-bottom:22px; }
+  .field label{ display:flex; justify-content:space-between; align-items:baseline; font-size:13.5px; font-weight:500; margin-bottom:7px; color:var(--ink); gap:6px; }
+  .field label .lblText{ display:flex; align-items:center; gap:5px; }
+  .infoDot{
+    display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; border-radius:50%;
+    background:var(--bg3); border:1px solid var(--ink-faint); color:var(--ink-soft); font-size:9.5px; font-weight:700; cursor:help; flex-shrink:0;
+  }
+  .field label .fieldValue{ font-family:'Space Grotesk',sans-serif; color:var(--grad-a); font-weight:600; white-space:nowrap; }
+  .field .unit{ color:var(--ink-soft); font-weight:400; font-size:12.5px; }
+
+  select, input[type=number]{
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:6px; background:var(--bg3); color:var(--ink);
+    font-family:'IBM Plex Sans',sans-serif; font-size:14px;
+  }
+  select:focus, input[type=number]:focus, input[type=range]:focus-visible{ outline:2px solid var(--grad-b); outline-offset:2px; }
+
+  input[type=range]{ width:100%; -webkit-appearance:none; height:4px; background:var(--line); border-radius:2px; margin-top:4px; }
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:17px; height:17px; border-radius:50%; background:linear-gradient(135deg,var(--grad-a),var(--grad-b)); border:2px solid var(--bg1); cursor:pointer; }
+  input[type=range]::-moz-range-thumb{ width:17px; height:17px; border-radius:50%; background:linear-gradient(135deg,var(--grad-a),var(--grad-b)); border:2px solid var(--bg1); cursor:pointer; }
+
+  .segmented{ display:flex; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+  .segmented button{ flex:1; padding:9px 6px; background:var(--bg3); border:none; border-right:1px solid var(--line); font-family:'IBM Plex Sans',sans-serif; font-size:13px; color:var(--ink-soft); cursor:pointer; }
+  .segmented button:last-child{ border-right:none; }
+  .segmented button.active{ background:linear-gradient(to right,var(--grad-a),var(--grad-b)); color:#04140F; }
+
+  .fieldNote{ font-size:12px; color:var(--ink-faint); margin-top:6px; }
+  .assumptionsBox{ margin-top:26px; padding:14px 15px; background:var(--bg3); border:1px solid var(--line); border-radius:8px; }
+  .assumptionsBox p{ margin:0 0 6px; font-size:11.5px; color:var(--ink-faint); }
+  .assumptionsBox .aRow{ display:flex; justify-content:space-between; font-size:12px; color:var(--ink-soft); margin-bottom:4px; }
+  .assumptionsBox .aRow b{ color:var(--ink); font-weight:500; }
+
+  .dashboard{ padding:28px clamp(18px,3vw,40px) 40px; }
+  .dashHead{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:18px; flex-wrap:wrap; gap:8px; }
+  .sectionLabel{ font-size:12px; letter-spacing:.08em; color:var(--ink-soft); text-transform:uppercase; margin:30px 0 14px; }
+  .sectionLabel:first-child{ margin-top:0; }
+
+  /* Hero KPI strip */
+  .kpiStrip{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  @media (max-width:760px){ .kpiStrip{ grid-template-columns:repeat(2,1fr); } }
+  .kpiTile{ border-radius:10px; padding:16px 18px; }
+  .kpiTile .kl{ font-size:12px; margin:0 0 8px; opacity:.85; }
+  .kpiTile .kv{ font-size:clamp(19px,2vw,23px); font-weight:700; margin:0; color:#fff; }
+  .kpiTile .ks{ font-size:11.5px; margin:6px 0 0; opacity:.75; }
+
+  /* Flow strip */
+  .flowStrip{ display:flex; align-items:stretch; gap:8px; flex-wrap:wrap; }
+  .flowNode{ flex:1; min-width:130px; border-radius:10px; padding:14px 16px; border:1px solid; }
+  .flowNode .fk{ font-size:11.5px; margin:0 0 6px; opacity:.9; }
+  .flowNode .fv{ font-size:17px; font-weight:600; margin:0; }
+  .flowArrow{ display:flex; align-items:center; color:var(--ink-faint); font-size:18px; padding:0 2px; }
+  @media (max-width:760px){ .flowArrow{ display:none; } }
+
+  .metricGrid{ display:grid; grid-template-columns:repeat(2,1fr); gap:16px; }
+  @media (max-width:640px){ .metricGrid{ grid-template-columns:1fr; } }
+
+  .metricCard{ border-radius:10px; padding:18px 20px 20px; border:1px solid var(--line); background:var(--card); }
+  .metricModule{ font-size:12px; color:var(--ink-soft); margin:0 0 10px; display:flex; align-items:center; gap:7px; }
+  .dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .metricValue{ font-size:clamp(22px,2.4vw,27px); font-weight:600; margin:0 0 2px; letter-spacing:-.01em; color:var(--ink); }
+  .metricSub{ font-size:13px; color:var(--ink-soft); margin:0 0 12px; }
+  .bar{ height:6px; background:var(--line); border-radius:3px; overflow:hidden; }
+  .bar > span{ display:block; height:100%; border-radius:3px; transition:width .35s ease; }
+
+  .heroCarbon{
+    border-radius:10px; padding:24px 26px; display:flex; justify-content:space-between; align-items:center;
+    gap:20px; flex-wrap:wrap; border:1px solid var(--blue-bd);
+    background:linear-gradient(to right bottom, var(--blue-bg), rgba(31,41,55,.4));
+    transition: background .4s ease, border-color .4s ease; margin-bottom:16px;
+  }
+  .heroCarbon.negative{ border-color:rgba(74,222,128,.5); background:linear-gradient(to right bottom, rgba(20,83,45,.4), rgba(6,95,110,.28)); }
+  .heroCarbon .label{ font-size:12.5px; letter-spacing:.03em; color:var(--blue-tx); margin:0 0 6px; }
+  .heroCarbon.negative .label{ color:var(--green-tx); }
+  .heroCarbon .big{ font-size:clamp(30px,4vw,42px); font-weight:700; margin:0; letter-spacing:-.01em; color:#fff; }
+  .heroCarbon .tag{ font-size:13px; color:#CBD5E1; max-width:270px; }
+  .heroCarbon.negative .tag{ color:#D1FAE5; }
+
+  /* Charts row */
+  .chartsRow{ display:grid; grid-template-columns:1.4fr 1fr; gap:16px; }
+  @media (max-width:800px){ .chartsRow{ grid-template-columns:1fr; } }
+  .chartCard{ background:var(--card); border:1px solid var(--line); border-radius:10px; padding:18px 20px 14px; }
+  .chartTitle{ font-size:13px; font-weight:600; margin:0 0 4px; color:var(--ink); }
+  .chartSub{ font-size:11.5px; color:var(--ink-faint); margin:0 0 12px; }
+  .legendRow{ display:flex; gap:16px; margin-top:10px; flex-wrap:wrap; }
+  .legendItem{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-soft); }
+  .legendSwatch{ width:9px; height:9px; border-radius:2px; }
+  .donutWrap{ display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+  .donut{ width:118px; height:118px; border-radius:50%; flex-shrink:0; position:relative; }
+  .donut .hole{ position:absolute; inset:16px; border-radius:50%; background:var(--card); display:flex; align-items:center; justify-content:center; flex-direction:column; }
+  .donut .hole .dv{ font-size:15px; font-weight:700; color:#fff; }
+  .donut .hole .dl{ font-size:9.5px; color:var(--ink-faint); }
+
+  .internalPanel{
+    margin-top:18px; border:1px dashed var(--ink-faint); border-radius:10px; padding:18px 20px;
+    background: repeating-linear-gradient(135deg, rgba(255,255,255,.02), rgba(255,255,255,.02) 10px, rgba(255,255,255,.045) 10px, rgba(255,255,255,.045) 20px);
+    display:none;
+  }
+  .internalPanel.show{ display:block; }
+  .internalHead{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--amber-tx); margin-bottom:14px; }
+  .internalGrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  @media (max-width:720px){ .internalGrid{ grid-template-columns:repeat(2,1fr); } }
+  .internalItem .k{ font-size:11.5px; color:var(--ink-soft); margin:0 0 4px; }
+  .internalItem .v{ font-family:'Space Grotesk',sans-serif; font-size:16px; font-weight:600; color:var(--ink); }
+
+  .bottomBand{ padding:8px clamp(18px,4vw,48px) 44px; }
+  .disclaimer{ background:var(--amber-bg); border:1px solid var(--amber-bd); border-radius:10px; padding:16px 18px; font-size:12.5px; color:#FDE9C7; margin-bottom:22px; }
+  .disclaimer strong{ color:#fff; }
+  .ctaRow{ display:flex; align-items:center; justify-content:space-between; gap:18px; flex-wrap:wrap; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:22px 26px; }
+  .ctaRow h3{ margin:0 0 4px; font-family:'Space Grotesk',sans-serif; font-size:18px; }
+  .ctaRow p{ margin:0; font-size:13px; color:var(--ink-soft); max-width:440px; }
+  .ctaBtn{ flex-shrink:0; padding:13px 22px; border-radius:8px; border:none; font-weight:600; font-size:14px; cursor:pointer; background:linear-gradient(to right,var(--grad-a),var(--grad-b)); color:#04140F; }
+
+  footer{ padding:20px clamp(18px,3vw,40px) 34px; font-size:12px; color:var(--ink-faint); max-width:920px; }
+
+  /* Server-driven state: figures dim while a calculation is in flight, so a
+     partner never reads a stale number as if it were current. */
+  body.is-busy .metricValue, body.is-busy .heroKpiVal, body.is-busy .kpiTile .kv,
+  body.is-busy .big, body.is-busy .flowVal, body.is-busy .metricSub{
+    opacity:.45; transition:opacity .15s ease;
+  }
+  .errBar{
+    display:none; margin:0 clamp(18px,4vw,48px) 14px; padding:11px 15px;
+    background:rgba(127,29,29,.35); border:1px solid rgba(239,68,68,.5);
+    color:#FCA5A5; font-size:13px;
+  }
+  .errBar.show{ display:block; }
+  footer strong{ color:var(--ink-soft); }
+
+  .mockupBanner{
+    position:sticky; top:0; z-index:50;
+    background: repeating-linear-gradient(135deg, #7C2D12, #7C2D12 12px, #78350F 12px, #78350F 24px);
+    border-bottom: 1px solid var(--amber-bd);
+    padding: 10px clamp(18px,4vw,48px);
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    text-align:center; flex-wrap:wrap;
+  }
+  .mockupBanner p{ margin:0; font-size:12.5px; color:#FEF3C7; font-weight:500; }
+  .mockupBanner strong{ color:#fff; }
+</style>
+</head>
+<body>
+
+<div class="mockupBanner">
+  <p>⚠ <strong>Stand-in model, not Adaptavate's.</strong> Calculations run server-side as the brief requires, so no formula reaches this browser. The workbook behind them is a placeholder until Adaptavate's real model is wired in. Figures are illustrative.</p>
+</div>
+
+<header>
+  <div class="brandRow">
+    <p class="wordmark">ADAPTAVATE</p>
+    <h1>Biomass-to-Board Engine</h1>
+    <p class="subhead" id="modeSubhead">Partner evaluation tool, Phase 1</p>
+  </div>
+  <div class="modeSwitch" role="group" aria-label="Access mode">
+    <button id="btnPartner" class="active">Partner Mode</button>
+    <button id="btnInternal">Adaptavate Mode</button>
+  </div>
+</header>
+
+<div class="errBar" id="errBar"></div>
+<div class="introRow">
+  <div class="introCard">
+    <p class="ik">📊 What this shows</p>
+    <p class="iv">Move any variable on the left and see the technical, carbon and financial case for converting your line to GypBlack recalculate instantly.</p>
+  </div>
+  <div class="introCard">
+    <p class="ik">🤝 Who it's for</p>
+    <p class="iv">Prospective B2B licensees sizing up a deployment, evaluating the case at their own plant's numbers before committing to a formal engagement.</p>
+  </div>
+  <div class="introCard warn">
+    <p class="ik">⚠ Important</p>
+    <p class="iv">All figures are model outputs from illustrative Phase 1 logic, not Adaptavate's proprietary formulation. See full note at the foot of the page.</p>
+  </div>
+</div>
+
+<main>
+  <section class="controlPanel">
+    <p class="panelLabel">Control panel</p>
+
+    <div class="field">
+      <label for="feedstock"><span class="lblText">Biomass feedstock type <span class="infoDot" title="Selection of available regional biomass sources">i</span></span></label>
+      <select id="feedstock">
+        <option value="wheat">Wheat straw</option>
+        <option value="miscanthus">Miscanthus</option>
+        <option value="hemp">Hemp shiv</option>
+        <option value="forestry">Forestry residue</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label><span class="lblText">Feedstock delivered cost <span class="infoDot" title="Local cost per tonne of delivered biomass">i</span></span><span class="fieldValue" id="feedstockCostVal">£180</span><span class="unit">/tonne</span></label>
+      <input type="range" id="feedstockCost" min="50" max="500" step="5" value="180">
+    </div>
+
+    <div class="field">
+      <label><span class="lblText">Annual plant capacity <span class="infoDot" title="Total baseline board output of partner facility">i</span></span><span class="fieldValue" id="plantCapacityVal">5,000,000</span><span class="unit">m²/yr</span></label>
+      <input type="number" id="plantCapacity" min="100000" step="50000" value="5000000">
+    </div>
+
+    <div class="field">
+      <label><span class="lblText">Current gas consumption <span class="infoDot" title="Baseline natural gas usage per unit produced">i</span></span><span class="fieldValue" id="gasConsumptionVal">9.5</span><span class="unit">kWh/m²</span></label>
+      <input type="number" id="gasConsumption" min="0" step="0.1" value="9.5">
+    </div>
+
+    <div class="field">
+      <label><span class="lblText">Line conversion level <span class="infoDot" title="Share of plant production converted to GypBlack">i</span></span><span class="fieldValue" id="lineConversionVal">40%</span></label>
+      <input type="range" id="lineConversion" min="10" max="100" step="1" value="40">
+    </div>
+
+    <div class="field">
+      <label><span class="lblText">Biochar inclusion rate <span class="infoDot" title="Percentage of formulation replaced by biochar">i</span></span><span class="fieldValue" id="biocharRateVal">15%</span></label>
+      <input type="range" id="biocharRate" min="5" max="30" step="1" value="15">
+    </div>
+
+    <div class="field">
+      <label><span class="lblText">Carbon credit price <span class="infoDot" title="Assumed market value for carbon removal credits">i</span></span><span class="fieldValue" id="carbonPriceVal">£120</span><span class="unit">/tCO₂e</span></label>
+      <input type="range" id="carbonPrice" min="50" max="500" step="5" value="120">
+    </div>
+
+    <div class="field">
+      <label><span class="lblText">Carbon credit accumulation <span class="infoDot" title="Inset: credits retained to reduce your own supply-chain footprint. Offset: credits sold externally at full market price. Hybrid: a split of the two.">i</span></span></label>
+      <div class="segmented" role="group" aria-label="Carbon credit accumulation mode">
+        <button data-mode="Inset" class="creditModeBtn">Inset</button>
+        <button data-mode="Offset" class="creditModeBtn active">Offset</button>
+        <button data-mode="Hybrid" class="creditModeBtn">Hybrid</button>
+      </div>
+    </div>
+
+    <div class="assumptionsBox">
+      <p>Fixed model assumptions (Phase 1 illustrative)</p>
+      <div class="aRow"><span>Appraisal period</span><b>10 years</b></div>
+      <div class="aRow"><span>Discount rate</span><b>8%</b></div>
+      <div class="aRow"><span>Reference gas price</span><b>£38/MWh</b></div>
+      <div class="aRow"><span>Traditional board benchmark</span><b>6.4 kg CO₂e/m²</b></div>
+    </div>
+  </section>
+
+  <section class="dashboard">
+    <div class="dashHead">
+      <p class="panelLabel" style="margin:0;">Results dashboard</p>
+      <p class="subhead" style="margin:0;">Updates live as you adjust the panel</p>
+    </div>
+
+    <div class="kpiStrip">
+      <div class="kpiTile" style="background:var(--green);">
+        <p class="kl" style="color:#DCFCE7;">Net present value <span class="infoDot" style="border-color:#DCFCE7;color:#DCFCE7;" title="10-year discounted cash flow at 8%, less the upfront capital cost">i</span></p>
+        <p class="kv" id="npvVal">£0</p>
+        <p class="ks" style="color:#DCFCE7;">over 10-year appraisal</p>
+      </div>
+      <div class="kpiTile" style="background:var(--blue);">
+        <p class="kl" style="color:#DBEAFE;">Payback period</p>
+        <p class="kv" id="paybackVal2">0.0 yrs</p>
+        <p class="ks" style="color:#DBEAFE;">on capital invested</p>
+      </div>
+      <div class="kpiTile" style="background:var(--purple);">
+        <p class="kl" style="color:#F3E8FF;">Annual net cash flow</p>
+        <p class="kv" id="netCashVal">£0</p>
+        <p class="ks" style="color:#F3E8FF;">after running costs</p>
+      </div>
+      <div class="kpiTile" style="background:var(--pink);">
+        <p class="kl" style="color:#FCE7F3;">Lifetime CO₂ removed</p>
+        <p class="kv" id="lifetimeCdrVal">0 t</p>
+        <p class="ks" style="color:#FCE7F3;">across 10 years</p>
+      </div>
+    </div>
+
+    <p class="sectionLabel">Process flow</p>
+    <div class="flowStrip">
+      <div class="flowNode" style="background:var(--blue-bg); border-color:var(--blue-bd);">
+        <p class="fk" style="color:var(--blue-tx);" id="flowFeedstockLbl">Gas displaced</p>
+        <p class="fv flowVal" id="flowFeedstock" style="color:#fff;">0</p>
+      </div>
+      <div class="flowArrow">→</div>
+      <div class="flowNode" style="background:var(--amber-bg); border-color:var(--amber-bd);">
+        <p class="fk" style="color:var(--amber-tx);">Line conversion</p>
+        <p class="fv flowVal" id="flowConversion" style="color:#fff;">0 m²/yr</p>
+      </div>
+      <div class="flowArrow">→</div>
+      <div class="flowNode" style="background:var(--green-bg); border-color:var(--green-bd);">
+        <p class="fk" style="color:var(--green-tx);">GypBlack output</p>
+        <p class="fv flowVal" id="flowGypsum" style="color:#fff;">0 t/yr saved</p>
+      </div>
+      <div class="flowArrow">→</div>
+      <div class="flowNode" style="background:linear-gradient(to right, var(--green-bg), rgba(6,182,212,.22)); border-color:rgba(34,211,238,.4);">
+        <p class="fk" style="color:#67E8F9;">Carbon removed</p>
+        <p class="fv flowVal" id="flowCdr" style="color:#fff;">0 t/yr</p>
+      </div>
+    </div>
+
+    <p class="sectionLabel">Technical &amp; carbon case</p>
+    <div class="heroCarbon" id="heroCarbon">
+      <div>
+        <p class="label">Carbon impact — net embodied carbon</p>
+        <p class="big"><span id="netCarbonVal">0.0</span> kg CO₂e/m²</p>
+      </div>
+      <p class="tag" id="carbonTag">vs. 6.4 kg CO₂e/m² traditional plasterboard benchmark</p>
+    </div>
+    <div class="metricGrid">
+      <div class="metricCard">
+        <p class="metricModule"><span class="dot" style="background:var(--blue)"></span>Energy security</p>
+        <p class="metricValue"><span id="gasDisplacementPct">0</span>%</p>
+        <p class="metricSub"><span id="gasDisplacementMWh">0</span> MWh/yr gas displacement</p>
+        <div class="bar"><span id="gasBar" style="width:0%; background:var(--blue);"></span></div>
+      </div>
+      <div class="metricCard">
+        <p class="metricModule"><span class="dot" style="background:var(--amber)"></span>Resource security</p>
+        <p class="metricValue"><span id="gypsumPct">0</span>%</p>
+        <p class="metricSub"><span id="gypsumTonnes">0</span> tonnes/yr gypsum saved</p>
+        <div class="bar"><span id="gypsumBar" style="width:0%; background:var(--amber);"></span></div>
+      </div>
+    </div>
+
+    <p class="sectionLabel">Commercial case</p>
+    <div class="metricGrid">
+      <div class="metricCard">
+        <p class="metricModule"><span class="dot" style="background:var(--green)"></span>Carbon removal</p>
+        <p class="metricValue"><span id="cdrVal">0</span></p>
+        <p class="metricSub">tonnes CO₂/yr quantified removal potential</p>
+        <div class="bar"><span id="cdrBar" style="width:0%; background:var(--green);"></span></div>
+      </div>
+      <div class="metricCard">
+        <p class="metricModule"><span class="dot" style="background:var(--purple)"></span>Commercial case</p>
+        <p class="metricValue"><span id="capexVal">£0</span></p>
+        <p class="metricSub">CAPEX · <span id="opexVal">£0</span>/yr OPEX</p>
+        <div class="bar"><span id="capexBar" style="width:0%; background:var(--purple);"></span></div>
+      </div>
+      <div class="metricCard">
+        <p class="metricModule"><span class="dot" style="background:var(--pink)"></span>Financial return</p>
+        <p class="metricValue"><span id="unitCostVal">£0.00</span>/m²</p>
+        <p class="metricSub"><span id="paybackVal">0</span> year payback</p>
+        <div class="bar"><span id="paybackBar" style="width:0%; background:var(--pink);"></span></div>
+      </div>
+    </div>
+
+    <div class="chartsRow" style="margin-top:16px;">
+      <div class="chartCard">
+        <p class="chartTitle">10-year cumulative cash flow</p>
+        <p class="chartSub">Undiscounted. Crosses zero at the payback year.</p>
+        <svg id="cashChart" viewBox="0 0 560 190" style="width:100%; height:auto;"></svg>
+      </div>
+      <div class="chartCard">
+        <p class="chartTitle">Annual revenue mix</p>
+        <p class="chartSub">Gas cost savings vs. carbon credit revenue</p>
+        <div class="donutWrap">
+          <div class="donut" id="donut">
+            <div class="hole"><span class="dv" id="donutTotal">£0</span><span class="dl">per year</span></div>
+          </div>
+          <div>
+            <div class="legendRow" style="flex-direction:column; gap:8px; margin-top:0;">
+              <div class="legendItem"><span class="legendSwatch" style="background:var(--blue);"></span>Gas savings — <span id="legendGas">£0</span></div>
+              <div class="legendItem"><span class="legendSwatch" style="background:var(--green);"></span>Carbon credits — <span id="legendCarbon">£0</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="internalPanel" id="internalPanel">
+      <p class="internalHead">🔒 Adaptavate Mode — internal parameters, hidden from partners in the licensed tool</p>
+      <div class="internalGrid">
+        <div class="internalItem"><p class="k">Feedstock carbon factor</p><p class="v" id="carbonFactorVal">1.00</p></div>
+        <div class="internalItem"><p class="k">Feedstock yield factor</p><p class="v" id="yieldFactorVal">1.00</p></div>
+        <div class="internalItem"><p class="k">Biomass required</p><p class="v" id="feedstockTonnesVal">0 t/yr</p></div>
+        <div class="internalItem"><p class="k">Converted output</p><p class="v" id="convertedOutputVal">0 m²/yr</p></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="bottomBand">
+  <div class="disclaimer">
+    <strong>About this build.</strong> Every figure is calculated on the server using the configured workbook, and only the finished values are returned to this page, so the underlying formulas are never exposed to a partner. Until Adaptavate's real model is supplied, the workbook behind these numbers is a stand-in written for development, and the figures are illustrative. Live IoT feeds, ML optimisation and open self-service sign-up are out of scope for Phase 1.
+  </div>
+  <div class="ctaRow">
+    <div>
+      <h3>Ready to model your own facility?</h3>
+      <p>This prototype demonstrates the experience only. A full deployment scenario is built with Adaptavate directly, using your real plant data under NDA.</p>
+    </div>
+    <button class="ctaBtn" type="button">Request a partner briefing</button>
+  </div>
+</div>
+
+<footer>
+  <strong>Design note.</strong> Visual style (dark background, colour-coded process stages, gradient accents) is adapted from biocharroi.earth, used as a design reference only, not a shared codebase.
+</footer>
+
+<script>
+(function(){
+  // -------------------------------------------------------------------------
+  // NO MATHS HERE, DELIBERATELY.
+  // Every figure on this page is calculated on the server, using Adaptavate's
+  // own workbook. This file knows how to draw numbers, not how to produce them.
+  // If you find yourself adding a formula below, stop: it belongs server-side.
+  // -------------------------------------------------------------------------
+
+  const el = id => document.getElementById(id);
+  const gbp = n => (n === null || n === undefined) ? '—'
+      : (n < 0 ? '-£' : '£') + Math.round(Math.abs(n)).toLocaleString('en-GB');
+  const num = (n, d = 0) => (n === null || n === undefined) ? '—'
+      : Number(n).toLocaleString('en-GB', { minimumFractionDigits: d, maximumFractionDigits: d });
+
+  // Set at build/deploy time if the API lives elsewhere. Same origin by default.
+  const API_BASE = window.BBE_API_BASE || '';
+  const API_TOKEN = window.BBE_API_TOKEN || '';
+
+  let state = {
+    feedstock: 'wheat', feedstockCost: 180, plantCapacity: 5000000, gasConsumption: 9.5,
+    lineConversion: 40, biocharRate: 15, carbonPrice: 120, creditMode: 'Offset', mode: 'partner'
+  };
+
+  let inFlight = null;     // AbortController for the current request
+  let debounceTimer = null;
+  let lastGood = null;     // last successful result, kept for the internal panel
+
+  function setBusy(busy) {
+    document.body.classList.toggle('is-busy', busy);
+  }
+
+  function showError(message) {
+    const bar = el('errBar');
+    if (!bar) return;
+    if (message) { bar.textContent = message; bar.classList.add('show'); }
+    else { bar.classList.remove('show'); }
+  }
+
+  // Dragging a slider fires an input event per pixel. Debounce so one drag is
+  // one request, not fifty.
+  function recalc() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(sendCalculation, 250);
+  }
+
+  async function sendCalculation() {
+    if (inFlight) inFlight.abort();          // a newer request supersedes an older one
+    inFlight = new AbortController();
+    setBusy(true);
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (API_TOKEN) headers['Authorization'] = 'Bearer ' + API_TOKEN;
+
+    try {
+      const res = await fetch(API_BASE + '/api/calculate', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          feedstock: state.feedstock,
+          feedstockCost: state.feedstockCost,
+          plantCapacity: state.plantCapacity,
+          gasConsumption: state.gasConsumption,
+          lineConversion: state.lineConversion,
+          biocharRate: state.biocharRate,
+          carbonPrice: state.carbonPrice,
+          creditMode: state.creditMode
+        }),
+        signal: inFlight.signal
+      });
+
+      if (!res.ok) {
+        let detail = 'Could not calculate.';
+        try { const body = await res.json(); if (body.error) detail = body.error; } catch (e) {}
+        if (res.status === 401) detail = 'Session not authorised. Please sign in again.';
+        showError(detail);
+        return;
+      }
+
+      const data = await res.json();
+      lastGood = data;
+      showError(null);
+      render(data);
+    } catch (err) {
+      if (err.name === 'AbortError') return;   // superseded, not a failure
+      showError('Cannot reach the calculation service. Check your connection.');
+    } finally {
+      inFlight = null;
+      setBusy(false);
+    }
+  }
+
+  function render(d) {
+    // KPI strip
+    el('npvVal').textContent = gbp(d.npv);
+    el('paybackVal2').textContent = d.paybackYears ? d.paybackYears.toFixed(1) + ' yrs' : '10+ yrs';
+    el('netCashVal').textContent = gbp(d.netAnnualCashFlow);
+    el('lifetimeCdrVal').textContent = num((d.cdrTonnes || 0) * 10) + ' t';
+
+    // Flow strip. Feedstock tonnage is an internal figure and is not returned
+    // to Partner Mode, so this reads from the internal payload when present.
+    // Feedstock tonnage is an internal figure: combined with capacity and the
+    // biochar rate it would reveal a model coefficient. Partner Mode therefore
+    // shows gas displaced here instead of a dash.
+    if (d.feedstockTonnes != null) {
+      el('flowFeedstockLbl').textContent = 'Feedstock in';
+      el('flowFeedstock').textContent = num(d.feedstockTonnes) + ' t/yr';
+    } else {
+      el('flowFeedstockLbl').textContent = 'Gas displaced';
+      el('flowFeedstock').textContent = num(d.gasDisplacementMWh) + ' MWh/yr';
+    }
+    el('flowConversion').textContent = num(d.convertedOutput != null ? d.convertedOutput
+        : state.plantCapacity * state.lineConversion / 100) + ' m²/yr';
+    el('flowGypsum').textContent = num(d.gypsumTonnes) + ' t/yr saved';
+    el('flowCdr').textContent = num(d.cdrTonnes) + ' t/yr';
+
+    // Carbon hero
+    const hero = el('heroCarbon'), tag = el('carbonTag');
+    el('netCarbonVal').textContent = d.netCarbon != null ? d.netCarbon.toFixed(1) : '—';
+    if (d.netCarbon != null && d.netCarbon < 0) {
+      hero.classList.add('negative');
+      tag.textContent = 'Carbon negative, storing more carbon than it emits, vs. 6.4 kg CO₂e/m² traditional benchmark';
+    } else {
+      hero.classList.remove('negative');
+      tag.textContent = 'vs. 6.4 kg CO₂e/m² traditional plasterboard benchmark';
+    }
+
+    // Module cards
+    el('gasDisplacementPct').textContent = num(d.gasDisplacementPct);
+    el('gasDisplacementMWh').textContent = num(d.gasDisplacementMWh);
+    el('gasBar').style.width = Math.min(100, d.gasDisplacementPct || 0) + '%';
+
+    el('gypsumPct').textContent = num(d.gypsumPct);
+    el('gypsumTonnes').textContent = num(d.gypsumTonnes);
+    el('gypsumBar').style.width = Math.min(100, d.gypsumPct || 0) + '%';
+
+    el('cdrVal').textContent = num(d.cdrTonnes);
+    el('cdrBar').style.width = Math.min(100, ((d.cdrTonnes || 0) / 600) * 100) + '%';
+
+    el('capexVal').textContent = gbp(d.capex);
+    el('opexVal').textContent = gbp(d.opex);
+    el('capexBar').style.width = Math.min(100, ((d.capex || 0) / 4200000) * 100) + '%';
+
+    el('unitCostVal').textContent = d.unitCost != null ? '£' + d.unitCost.toFixed(2) : '—';
+    el('paybackVal').textContent = d.paybackYears ? d.paybackYears.toFixed(1) : '10+';
+    el('paybackBar').style.width = d.paybackYears
+        ? Math.min(100, 100 - Math.min(90, d.paybackYears * 9)) + '%' : '4%';
+
+    // Internal panel. These are model parameters, so the server only returns
+    // them to an authorised internal request. Blank in Partner Mode by design.
+    el('carbonFactorVal').textContent = d.feedstockCarbonFactor != null ? d.feedstockCarbonFactor.toFixed(2) : '—';
+    el('yieldFactorVal').textContent = d.feedstockYieldFactor != null ? d.feedstockYieldFactor.toFixed(2) : '—';
+    el('feedstockTonnesVal').textContent = d.feedstockTonnes != null ? num(d.feedstockTonnes) + ' t/yr' : '—';
+    el('convertedOutputVal').textContent = num(d.convertedOutput != null ? d.convertedOutput
+        : state.plantCapacity * state.lineConversion / 100) + ' m²/yr';
+
+    drawCashChart(d.cashFlowSeries || []);
+    drawDonut(d);
+  }
+
+  function drawCashChart(cum) {
+    const svg = el('cashChart');
+    if (!svg || !cum.length) return;
+    const W = 560, H = 190, padL = 54, padR = 14, padT = 14, padB = 26;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const minV = Math.min(0, ...cum), maxV = Math.max(0, ...cum);
+    const range = (maxV - minV) || 1;
+    const x = i => padL + (i / (cum.length - 1)) * plotW;
+    const y = v => padT + plotH - ((v - minV) / range) * plotH;
+
+    let s = '';
+    const y0 = y(0);
+    s += `<line x1="${padL}" y1="${y0}" x2="${W-padR}" y2="${y0}" stroke="#374151" stroke-width="1" stroke-dasharray="3,3"/>`;
+    s += `<text x="${padL-8}" y="${y0+4}" text-anchor="end" font-size="10" fill="#6B7280">£0</text>`;
+    s += `<text x="${padL-8}" y="${padT+8}" text-anchor="end" font-size="10" fill="#6B7280">${(maxV/1000).toFixed(0)}k</text>`;
+    s += `<text x="${padL-8}" y="${H-padB+4}" text-anchor="end" font-size="10" fill="#6B7280">${(minV/1000).toFixed(0)}k</text>`;
+    for (let i = 0; i < cum.length; i += 2) {
+      s += `<text x="${x(i)}" y="${H-6}" text-anchor="middle" font-size="10" fill="#6B7280">Y${i}</text>`;
+    }
+    const pts = cum.map((v, i) => `${x(i)},${y(v)}`).join(' ');
+    s += `<polygon points="${padL},${y0} ${pts} ${x(cum.length-1)},${y0}" fill="rgba(74,222,128,0.12)"/>`;
+    s += `<polyline points="${pts}" fill="none" stroke="url(#lineGrad)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    cum.forEach((v, i) => {
+      s += `<circle cx="${x(i)}" cy="${y(v)}" r="3" fill="${v >= 0 ? '#4ADE80' : '#F87171'}"/>`;
+    });
+    svg.innerHTML = `<defs><linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#22D3EE"/><stop offset="100%" stop-color="#4ADE80"/>
+    </linearGradient></defs>` + s;
+  }
+
+  function drawDonut(d) {
+    // Revenue split is derived from returned figures, not recomputed from the model.
+    const gasVal = d.gasSavingsValue != null ? d.gasSavingsValue : null;
+    const carbonVal = d.carbonRevenue != null ? d.carbonRevenue : null;
+    const donut = el('donut');
+    if (!donut) return;
+
+    if (gasVal === null || carbonVal === null) {
+      // The server did not break the return down, so show the total only rather
+      // than inventing a split in the browser.
+      donut.style.background = 'conic-gradient(var(--green) 0% 100%)';
+      el('donutTotal').textContent = gbp((d.netAnnualCashFlow || 0) + (d.opex || 0));
+      el('legendGas').textContent = 'not itemised';
+      el('legendCarbon').textContent = 'not itemised';
+      return;
+    }
+    const total = gasVal + carbonVal;
+    const gasPct = total > 0 ? (gasVal / total) * 100 : 50;
+    donut.style.background = `conic-gradient(var(--blue) 0% ${gasPct}%, var(--green) ${gasPct}% 100%)`;
+    el('donutTotal').textContent = gbp(total);
+    el('legendGas').textContent = gbp(gasVal) + ' (' + gasPct.toFixed(0) + '%)';
+    el('legendCarbon').textContent = gbp(carbonVal) + ' (' + (100 - gasPct).toFixed(0) + '%)';
+  }
+
+  el('feedstock').addEventListener('change', e=>{ state.feedstock=e.target.value; recalc(); });
+  el('feedstockCost').addEventListener('input', e=>{ state.feedstockCost=Number(e.target.value); el('feedstockCostVal').textContent='£'+state.feedstockCost; recalc(); });
+  el('plantCapacity').addEventListener('input', e=>{
+    const raw = e.target.value; let v = Number(raw); if(isNaN(v)) v = 0;
+    if(v < 0 || raw.trim().startsWith('-')){ v = 0; e.target.value = '0'; }
+    state.plantCapacity = v; el('plantCapacityVal').textContent=num(state.plantCapacity); recalc();
+  });
+  el('gasConsumption').addEventListener('input', e=>{
+    const raw = e.target.value; let v = Number(raw); if(isNaN(v)) v = 0;
+    if(v < 0 || raw.trim().startsWith('-')){ v = 0; e.target.value = '0'; }
+    state.gasConsumption = v; el('gasConsumptionVal').textContent=state.gasConsumption; recalc();
+  });
+  el('lineConversion').addEventListener('input', e=>{ state.lineConversion=Number(e.target.value); el('lineConversionVal').textContent=state.lineConversion+'%'; recalc(); });
+  el('biocharRate').addEventListener('input', e=>{ state.biocharRate=Number(e.target.value); el('biocharRateVal').textContent=state.biocharRate+'%'; recalc(); });
+  el('carbonPrice').addEventListener('input', e=>{ state.carbonPrice=Number(e.target.value); el('carbonPriceVal').textContent='£'+state.carbonPrice; recalc(); });
+
+  document.querySelectorAll('.creditModeBtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.creditModeBtn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active'); state.creditMode=btn.dataset.mode; recalc();
+    });
+  });
+
+  el('btnPartner').addEventListener('click', ()=>{
+    state.mode='partner'; el('btnPartner').classList.add('active'); el('btnInternal').classList.remove('active');
+    el('internalPanel').classList.remove('show'); el('modeSubhead').textContent='Partner evaluation tool, Phase 1';
+  });
+  el('btnInternal').addEventListener('click', ()=>{
+    state.mode='internal'; el('btnInternal').classList.add('active'); el('btnPartner').classList.remove('active');
+    el('internalPanel').classList.add('show'); el('modeSubhead').textContent='Adaptavate Mode — full parameter access for internal scenario modelling';
+  });
+
+  // First paint comes from the server too, so the page never shows invented numbers.
+  sendCalculation();
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check app tools tests
+
+      - name: Build the stand-in workbook
+        run: python tools/make_test_model.py
+
+      # Structural checks on whatever workbook is configured. Exits non-zero if
+      # it finds blockers, so a workbook that cannot be driven fails the build
+      # rather than failing in front of a partner.
+      - name: Inspect workbook
+        run: python tools/inspect_workbook.py model/Adaptavate-BBE-TEST-model.xlsx
+
+      # Every output must trace back to a real input. Catches a frozen constant
+      # or a broken chain before it ships.
+      - name: Trace dependencies
+        run: python tools/trace_dependencies.py model/Adaptavate-BBE-TEST-model.xlsx
+
+      - name: Test
+        run: pytest -q
+
+      # The security tests are the ones that must never be skipped. Run them
+      # again explicitly so a failure here is unmistakable in the log.
+      - name: Security checks
+        run: pytest tests/test_security.py -v
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build lean image
+        run: docker build --target lean -t adaptavate-bbe:lean .
+      - name: Start it and check health
+        run: |
+          python -m pip install openpyxl
+          python tools/make_test_model.py
+          docker run -d --name bbe -p 8000:8000 \
+            -e WORKBOOK_PATH=/app/model/Adaptavate-BBE-TEST-model.xlsx \
+            -e ACCESS_TOKENS=ci-token \
+            -v "$PWD/model:/app/model:ro" \
+            adaptavate-bbe:lean
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/api/health; then echo " healthy"; exit 0; fi
+            sleep 2
+          done
+          echo "container did not become healthy"; docker logs bbe; exit 1

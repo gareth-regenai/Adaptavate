@@ -1,0 +1,58 @@
+# Render blueprint. Deploy with: Render dashboard > New > Blueprint.
+#
+# Two services: staging and production, from separate branches.
+#
+# Set these as SECRETS in the Render dashboard, never here:
+#   ACCESS_TOKENS, INTERNAL_TOKENS
+# And upload Adaptavate's workbook as a Secret File at the path below.
+
+services:
+  - type: web
+    name: adaptavate-bbe-prod
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # "lean" unless inspect_workbook.py says the workbook needs LibreOffice.
+    dockerTarget: lean
+    region: frankfurt
+    branch: main
+    # Do NOT use the free instance type: it idles after inactivity and cold
+    # starts take 30 to 60 seconds, which is unacceptable when a partner opens
+    # the link at a conference.
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: CALC_BACKEND
+        value: formulas
+      - key: WORKBOOK_PATH
+        value: /etc/secrets/Adaptavate-BBE-model.xlsx
+      - key: ACCESS_TOKENS
+        sync: false          # set in the dashboard
+      - key: INTERNAL_TOKENS
+        sync: false          # set in the dashboard
+
+  - type: web
+    name: adaptavate-bbe-staging
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerTarget: lean
+    region: frankfurt
+    branch: staging
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: staging
+      - key: CALC_BACKEND
+        value: formulas
+      - key: WORKBOOK_PATH
+        value: /etc/secrets/Adaptavate-BBE-model.xlsx
+      - key: ACCESS_TOKENS
+        sync: false
+      - key: INTERNAL_TOKENS
+        sync: false
