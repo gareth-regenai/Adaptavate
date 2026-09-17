@@ -55,6 +55,24 @@ def test_unknown_credit_mode_rejected(valid_payload):
         prepare_inputs({**valid_payload, "creditMode": "Freebie"})
 
 
+def test_unknown_energy_type_rejected(valid_payload):
+    with pytest.raises(ValidationError):
+        prepare_inputs({**valid_payload, "energyType": "coal"})
+
+
+def test_missing_energy_type_rejected(valid_payload):
+    payload = {k: v for k, v in valid_payload.items() if k != "energyType"}
+    with pytest.raises(ValidationError):
+        prepare_inputs(payload)
+
+
+def test_energy_type_has_no_effect_yet(valid_payload):
+    """Recorded and validated, but not wired into any calculation (see contract.py)."""
+    gas = prepare_inputs({**valid_payload, "energyType": "gas"})
+    electric = prepare_inputs({**valid_payload, "energyType": "electric"})
+    assert gas == electric
+
+
 def test_injected_model_parameters_are_ignored(valid_payload):
     """A partner cannot smuggle a factor in through the payload."""
     result = prepare_inputs({

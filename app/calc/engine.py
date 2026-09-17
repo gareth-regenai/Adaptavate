@@ -19,8 +19,7 @@ from app.calc.backends.base import Backend
 from app.calc.contract import (
     APPRAISAL_YEARS,
     BOUNDS,
-    CREDIT_MULTIPLIERS,
-    FEEDSTOCK_FACTORS,
+    ENUM_FIELDS,
     SELF_TEST_EXPECTED,
     SELF_TEST_INPUT,
 )
@@ -37,10 +36,12 @@ class SelfTestFailed(RuntimeError):
 
 
 def prepare_inputs(payload: dict[str, Any]) -> dict[str, float]:
-    """Validate the eight form fields, then translate to model inputs.
+    """Validate every form field, then translate to model inputs.
 
     Never trust the browser. Sliders constrain the UI, but anyone can POST
-    straight to the API.
+    straight to the API. Field-by-field rules live in app/calc/contract.py
+    (BOUNDS for numeric fields, ENUM_FIELDS for enum ones) so adding a new
+    input is a contract.py edit, not a change here.
     """
     def number(field: str) -> float:
         if field not in payload or payload[field] is None or payload[field] == "":
@@ -56,26 +57,16 @@ def prepare_inputs(payload: dict[str, Any]) -> dict[str, float]:
             raise ValidationError(f"{field} must be between {low:g} and {high:g}")
         return value
 
-    feedstock = payload.get("feedstock")
-    if feedstock not in FEEDSTOCK_FACTORS:
-        raise ValidationError("feedstock is not a recognised option")
+    result: dict[str, float] = {field: number(field) for field in BOUNDS}
 
-    credit_mode = payload.get("creditMode")
-    if credit_mode not in CREDIT_MULTIPLIERS:
-        raise ValidationError("creditMode is not a recognised option")
+    for field, spec in ENUM_FIELDS.items():
+        value = payload.get(field)
+        if value not in spec.options:
+            raise ValidationError(f"{field} is not a recognised option")
+        if spec.resolve:
+            result.update(spec.resolve(value))
 
-    factors = FEEDSTOCK_FACTORS[feedstock]
-    return {
-        "feedstockCarbonFactor": factors["carbon"],
-        "feedstockYieldFactor": factors["yield"],
-        "feedstockCost": number("feedstockCost"),
-        "plantCapacity": number("plantCapacity"),
-        "gasConsumption": number("gasConsumption"),
-        "lineConversion": number("lineConversion"),
-        "biocharRate": number("biocharRate"),
-        "carbonPrice": number("carbonPrice"),
-        "creditMultiplier": CREDIT_MULTIPLIERS[credit_mode],
-    }
+    return result
 
 
 def shape_outputs(raw: dict[str, float | None]) -> dict[str, Any]:

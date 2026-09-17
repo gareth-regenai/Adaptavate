@@ -74,13 +74,14 @@ async def calculate(request: Request, who: Principal = Depends(require_token)):
     # Log what was modelled, not what came back. Useful sales intelligence, and
     # it is what the Tier 2 database will eventually persist.
     log.info(
-        "calc token=...%s internal=%s capacity=%s conversion=%s biochar=%s feedstock=%s",
+        "calc token=...%s internal=%s capacity=%s conversion=%s biochar=%s feedstock=%s energyType=%s",
         who.tail,
         who.is_internal,
         payload.get("plantCapacity"),
         payload.get("lineConversion"),
         payload.get("biocharRate"),
         payload.get("feedstock"),
+        payload.get("energyType"),
     )
     return JSONResponse(result)
 

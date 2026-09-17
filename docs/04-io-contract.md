@@ -6,11 +6,13 @@ their units.
 
 ## Inputs, the control panel
 
-Eight inputs. All are required, all are sent on every calculation request.
+Eight inputs from the brief, plus `energyType` (added post-brief, see below).
+All are required, all are sent on every calculation request.
 
 | Key | Label | Control | Type | Range | Unit | Default |
 |---|---|---|---|---|---|---|
 | `feedstock` | Biomass feedstock type | Dropdown | enum | `wheat`, `miscanthus`, `hemp`, `forestry` | n/a | `wheat` |
+| `energyType` | Energy consumption type | Dropdown | enum | `gas`, `electric`, `blended` | n/a | `gas` |
 | `feedstockCost` | Feedstock delivered cost | Slider | integer | 50 to 500, step 5 | GBP per tonne | 180 |
 | `plantCapacity` | Annual plant capacity | Number field | integer | 0 or greater, step 50,000 | m² per year | 5,000,000 |
 | `gasConsumption` | Current gas consumption | Number field | float | 0 or greater, step 0.1 | kWh per m² | 9.5 |
@@ -18,6 +20,18 @@ Eight inputs. All are required, all are sent on every calculation request.
 | `biocharRate` | Biochar inclusion rate | Slider | integer | 5 to 30, step 1 | percent | 15 |
 | `carbonPrice` | Carbon credit price | Slider | integer | 50 to 500, step 5 | GBP per tCO₂e | 120 |
 | `creditMode` | Carbon credit accumulation | Segmented toggle | enum | `Inset`, `Offset`, `Hybrid` | n/a | `Offset` |
+
+**`energyType` is validated and recorded, but has no effect on any output
+yet.** It is not part of the client brief's original eight fields. Nobody has
+defined how a gas/electric/blended fuel mix should change gas displacement,
+opex, or anything else, so it's a no-op today rather than a guess dressed up
+as a real figure. The UI says so next to the control. See "Confirm with
+Adaptavate" below and `app/calc/contract.py`'s `ENUM_FIELDS` for where its
+effect gets wired in once that's defined.
+
+Validation itself is table-driven (`BOUNDS` for numeric fields, `ENUM_FIELDS`
+for enum fields, both in `app/calc/contract.py`), so a future tenth or
+eleventh input is a new table entry, not a rewrite of `prepare_inputs`.
 
 ### Validation rules
 
@@ -40,6 +54,11 @@ The `creditMode` toggle needs its commercial meaning confirmed before build. The
 prototype applies a simple multiplier to carbon revenue (Offset full value, Inset
 reduced, Hybrid between). That was invented for the demo. Adaptavate must tell us
 what these three modes actually mean financially in their model.
+
+`energyType` needs its effect on the model defined from scratch — unlike
+`creditMode`, there isn't even an invented placeholder relationship yet.
+Adaptavate must confirm whether a partner's fuel mix changes gas displacement,
+opex, or another module, before it becomes more than a recorded choice.
 
 ## Outputs, the results dashboard
 

@@ -53,8 +53,9 @@ it.
 
 - All arithmetic happens in `app/calc/`. There is none in `web/index.html`, and
   `tests/test_security.py` fails the build if any appears.
-- The browser posts eight values to `/api/calculate` and receives twelve
-  finished numbers. Nothing else.
+- The browser posts nine values to `/api/calculate` and receives twelve
+  finished numbers. Nothing else. (`energyType` is the ninth, added after the
+  brief's original eight; see `docs/04-io-contract.md`.)
 - Feedstock type is sent as the word `"wheat"`. The browser never learns that
   wheat means a carbon factor of 1.00; that lookup is server-side in
   `app/calc/contract.py`.

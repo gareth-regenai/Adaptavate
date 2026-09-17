@@ -253,6 +253,16 @@
     </div>
 
     <div class="field">
+      <label for="energyType"><span class="lblText">Energy consumption type <span class="infoDot" title="Kiln fuel source. Recorded with your submission; Adaptavate has not yet confirmed how this changes the model">i</span></span></label>
+      <select id="energyType">
+        <option value="gas">Gas</option>
+        <option value="electric">Electric</option>
+        <option value="blended">Blended</option>
+      </select>
+      <p class="fieldNote">Recorded with your submission. Does not yet change the figures below — pending Adaptavate's fuel-mix model.</p>
+    </div>
+
+    <div class="field">
       <label><span class="lblText">Feedstock delivered cost <span class="infoDot" title="Local cost per tonne of delivered biomass">i</span></span><span class="fieldValue" id="feedstockCostVal">£180</span><span class="unit">/tonne</span></label>
       <input type="range" id="feedstockCost" min="50" max="500" step="5" value="180">
     </div>
@@ -384,10 +394,16 @@
         <div class="bar"><span id="cdrBar" style="width:0%; background:var(--green);"></span></div>
       </div>
       <div class="metricCard">
-        <p class="metricModule"><span class="dot" style="background:var(--purple)"></span>Commercial case</p>
+        <p class="metricModule"><span class="dot" style="background:var(--purple)"></span>Capital cost</p>
         <p class="metricValue"><span id="capexVal">£0</span></p>
-        <p class="metricSub">CAPEX · <span id="opexVal">£0</span>/yr OPEX</p>
+        <p class="metricSub">CAPEX, one-off conversion cost</p>
         <div class="bar"><span id="capexBar" style="width:0%; background:var(--purple);"></span></div>
+      </div>
+      <div class="metricCard">
+        <p class="metricModule"><span class="dot" style="background:var(--red)"></span>Operating cost</p>
+        <p class="metricValue"><span id="opexVal">£0</span>/yr</p>
+        <p class="metricSub">OPEX, annual running cost</p>
+        <div class="bar"><span id="opexBar" style="width:0%; background:var(--red);"></span></div>
       </div>
       <div class="metricCard">
         <p class="metricModule"><span class="dot" style="background:var(--pink)"></span>Financial return</p>
@@ -469,7 +485,7 @@
   const API_TOKEN = window.BBE_API_TOKEN || '';
 
   let state = {
-    feedstock: 'wheat', feedstockCost: 180, plantCapacity: 5000000, gasConsumption: 9.5,
+    feedstock: 'wheat', energyType: 'gas', feedstockCost: 180, plantCapacity: 5000000, gasConsumption: 9.5,
     lineConversion: 40, biocharRate: 15, carbonPrice: 120, creditMode: 'Offset', mode: 'partner'
   };
 
@@ -509,6 +525,7 @@
         headers,
         body: JSON.stringify({
           feedstock: state.feedstock,
+          energyType: state.energyType,
           feedstockCost: state.feedstockCost,
           plantCapacity: state.plantCapacity,
           gasConsumption: state.gasConsumption,
@@ -591,6 +608,7 @@
     el('capexVal').textContent = gbp(d.capex);
     el('opexVal').textContent = gbp(d.opex);
     el('capexBar').style.width = Math.min(100, ((d.capex || 0) / 4200000) * 100) + '%';
+    el('opexBar').style.width = Math.min(100, ((d.opex || 0) / 420000) * 100) + '%';
 
     el('unitCostVal').textContent = d.unitCost != null ? '£' + d.unitCost.toFixed(2) : '—';
     el('paybackVal').textContent = d.paybackYears ? d.paybackYears.toFixed(1) : '10+';
@@ -664,6 +682,7 @@
   }
 
   el('feedstock').addEventListener('change', e=>{ state.feedstock=e.target.value; recalc(); });
+  el('energyType').addEventListener('change', e=>{ state.energyType=e.target.value; recalc(); });
   el('feedstockCost').addEventListener('input', e=>{ state.feedstockCost=Number(e.target.value); el('feedstockCostVal').textContent='£'+state.feedstockCost; recalc(); });
   el('plantCapacity').addEventListener('input', e=>{
     const raw = e.target.value; let v = Number(raw); if(isNaN(v)) v = 0;

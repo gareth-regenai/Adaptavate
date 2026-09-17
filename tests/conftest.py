@@ -56,7 +56,7 @@ def client(test_model):
 @pytest.fixture
 def valid_payload():
     return {
-        "feedstock": "wheat", "feedstockCost": 180, "plantCapacity": 5_000_000,
+        "feedstock": "wheat", "energyType": "gas", "feedstockCost": 180, "plantCapacity": 5_000_000,
         "gasConsumption": 9.5, "lineConversion": 40, "biocharRate": 15,
         "carbonPrice": 120, "creditMode": "Offset",
     }

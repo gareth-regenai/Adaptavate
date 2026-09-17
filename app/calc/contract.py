@@ -10,6 +10,9 @@ capacity into the feedstock cost cell, with no error.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
+
 # Form field -> named range in the workbook's Inputs sheet.
 INPUT_RANGES: dict[str, str] = {
     "feedstockCarbonFactor": "in_feedstock_carbon",
@@ -69,7 +72,48 @@ CREDIT_MULTIPLIERS: dict[str, float] = {
     "Inset": 0.60,
 }
 
-# Slider and field bounds, enforced server-side regardless of the UI.
+# The kiln's energy source. Recorded and validated like any other input, but
+# NOT YET WIRED INTO ANY CALCULATION: nobody has told us how gas vs electric
+# vs a blend should change gas displacement, opex or anything else. Adding a
+# resolver below (see EnumField) the day Adaptavate confirms that relationship
+# is the only change needed here; nothing else in the engine has to move.
+ENERGY_TYPES: frozenset[str] = frozenset({"gas", "electric", "blended"})
+
+
+@dataclass(frozen=True)
+class EnumField:
+    """One enum-style input: its allowed values, and what choosing one means.
+
+    `resolve` turns the chosen option into zero or more extra model inputs
+    (e.g. a feedstock name becomes carbon/yield factors). None means the
+    field is validated and recorded but has no confirmed effect yet.
+
+    Adding a tenth, eleventh, ... enum input is adding an entry here, not
+    touching prepare_inputs.
+    """
+
+    options: frozenset[str]
+    resolve: Callable[[str], dict[str, float]] | None = None
+
+
+ENUM_FIELDS: dict[str, EnumField] = {
+    "feedstock": EnumField(
+        options=frozenset(FEEDSTOCK_FACTORS),
+        resolve=lambda v: {
+            "feedstockCarbonFactor": FEEDSTOCK_FACTORS[v]["carbon"],
+            "feedstockYieldFactor": FEEDSTOCK_FACTORS[v]["yield"],
+        },
+    ),
+    "creditMode": EnumField(
+        options=frozenset(CREDIT_MULTIPLIERS),
+        resolve=lambda v: {"creditMultiplier": CREDIT_MULTIPLIERS[v]},
+    ),
+    "energyType": EnumField(options=ENERGY_TYPES),
+}
+
+# Slider and field bounds, enforced server-side regardless of the UI. Adding a
+# tenth, eleventh, ... numeric input is adding an entry here, not touching
+# prepare_inputs.
 # Adaptavate must confirm these against the model's real validity envelope,
 # see the Limits tab of the workbook locator.
 BOUNDS: dict[str, tuple[float, float]] = {
@@ -95,6 +139,7 @@ SELF_TEST_INPUT = {
     "biocharRate": 15,
     "carbonPrice": 120,
     "creditMode": "Offset",
+    "energyType": "gas",
 }
 SELF_TEST_EXPECTED = {
     "gasDisplacementMWh": 8_550.0,
