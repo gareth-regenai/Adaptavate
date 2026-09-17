@@ -1,6 +1,8 @@
 # Render blueprint. Deploy with: Render dashboard > New > Blueprint.
 #
-# Two services: staging and production, from separate branches.
+# Production only for now, from main. A staging service (from a staging
+# branch) can be added back once that branch exists - see git history for
+# the previous two-service version.
 #
 # Set these as SECRETS in the Render dashboard, never here:
 #   ACCESS_TOKENS, INTERNAL_TOKENS
@@ -35,25 +37,3 @@ services:
         sync: false          # set in the dashboard
       - key: INTERNAL_TOKENS
         sync: false          # set in the dashboard
-
-  - type: web
-    name: adaptavate-bbe-staging
-    runtime: docker
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    region: frankfurt
-    branch: staging
-    plan: starter
-    healthCheckPath: /api/health
-    autoDeploy: true
-    envVars:
-      - key: ENVIRONMENT
-        value: staging
-      - key: CALC_BACKEND
-        value: formulas
-      - key: WORKBOOK_PATH
-        value: /etc/secrets/Adaptavate-BBE-model.xlsx
-      - key: ACCESS_TOKENS
-        sync: false
-      - key: INTERNAL_TOKENS
-        sync: false
