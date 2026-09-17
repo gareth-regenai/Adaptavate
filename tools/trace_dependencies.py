@@ -193,7 +193,7 @@ def main(path: Path, slice_out: Path | None) -> int:
         # change and we did not know about.
         frozen = [c for c in chain
                   if c not in formulas and c not in input_keys and c in literals
-                  and isinstance(literals[c], (int, float))]
+                  and isinstance(literals[c], int | float)]
         # References into empty space: a broken string.
         dangling = [c for c in chain if c not in formulas and c not in literals]
         # Untraceable functions anywhere in the chain
