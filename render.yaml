@@ -12,8 +12,10 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    # "lean" unless inspect_workbook.py says the workbook needs LibreOffice.
-    dockerTarget: lean
+    # Builds the "lean" stage: Render has no field to select a build stage, so
+    # the Dockerfile deliberately puts "lean" last (Docker builds the last
+    # stage by default). Switch to "full" only by reordering the Dockerfile,
+    # if inspect_workbook.py says the workbook needs LibreOffice.
     region: frankfurt
     branch: main
     # Do NOT use the free instance type: it idles after inactivity and cold
@@ -39,7 +41,6 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    dockerTarget: lean
     region: frankfurt
     branch: staging
     plan: starter

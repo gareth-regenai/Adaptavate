@@ -47,9 +47,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
 # extra workers each load their own copy and waste memory. Scale with instances.
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
 
-# ---------- lean: the default, pure-Python only ----------
-FROM base AS lean
-
 # ---------- full: adds a real spreadsheet engine ----------
 FROM base AS full
 USER root
@@ -58,3 +55,12 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 USER appuser
 ENV CALC_BACKEND=libreoffice
+
+# ---------- lean: the default, pure-Python only ----------
+# Deliberately LAST: Render's blueprint spec has no field to select a build
+# stage (docker-compose's `target:` doesn't exist there), and Docker builds
+# whichever stage is last in the file when none is requested. `docker build
+# --target <stage>` and docker-compose's `target:` still work unaffected by
+# order; this ordering only matters for Render's own build, which has no such
+# override.
+FROM base AS lean
