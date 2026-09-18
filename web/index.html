@@ -192,6 +192,28 @@
   .errBar.show{ display:block; }
   footer strong{ color:var(--ink-soft); }
 
+  .signInOverlay{
+    position:fixed; inset:0; z-index:200; display:flex; align-items:center; justify-content:center;
+    background: linear-gradient(to bottom right, var(--bg1), var(--bg2) 45%, var(--bg1));
+    padding: 24px;
+  }
+  .signInOverlay[hidden]{ display:none; }
+  .signInCard{
+    width:100%; max-width:380px; background:var(--card); border:1px solid var(--line);
+    border-radius:14px; padding:32px 28px; text-align:center;
+  }
+  .signInCard h2{ font-family:'Space Grotesk',sans-serif; font-size:20px; margin:4px 0 8px; }
+  .signInCard p.desc{ color:var(--ink-soft); font-size:13px; line-height:1.5; margin:0 0 22px; }
+  .signInCard input{
+    width:100%; box-sizing:border-box; padding:11px 14px; border-radius:8px; border:1px solid var(--line);
+    background:var(--bg3); color:var(--ink); font-size:14px; margin-bottom:12px; text-align:center;
+    letter-spacing:.05em; font-family:'IBM Plex Sans',sans-serif;
+  }
+  .signInCard input:focus{ outline:none; border-color:var(--grad-b); }
+  .signInCard .ctaBtn{ width:100%; }
+  .signInCard .signInError{ display:none; color:#FCA5A5; font-size:12.5px; margin-top:14px; line-height:1.4; }
+  .signInCard .signInError.show{ display:block; }
+
   .mockupBanner{
     position:sticky; top:0; z-index:50;
     background: repeating-linear-gradient(135deg, #7C2D12, #7C2D12 12px, #78350F 12px, #78350F 24px);
@@ -205,6 +227,19 @@
 </style>
 </head>
 <body>
+
+<div class="signInOverlay" id="signInOverlay" hidden>
+  <div class="signInCard">
+    <p class="wordmark">ADAPTAVATE</p>
+    <h2>Biomass-to-Board Engine</h2>
+    <p class="desc">Enter the access code Adaptavate gave you to open the evaluation tool.</p>
+    <form id="signInForm">
+      <input type="password" id="signInToken" placeholder="Access code" autocomplete="off">
+      <button type="submit" class="ctaBtn">Continue</button>
+      <p class="signInError" id="signInError"></p>
+    </form>
+  </div>
+</div>
 
 <div class="mockupBanner">
   <p>⚠ <strong>Stand-in model, not Adaptavate's.</strong> Calculations run server-side as the brief requires, so no formula reaches this browser. The workbook behind them is a placeholder until Adaptavate's real model is wired in. Figures are illustrative.</p>
@@ -482,7 +517,42 @@
 
   // Set at build/deploy time if the API lives elsewhere. Same origin by default.
   const API_BASE = window.BBE_API_BASE || '';
-  const API_TOKEN = window.BBE_API_TOKEN || '';
+
+  // No public sign-up, per the brief: a partner is given an access code by
+  // Adaptavate and types it in once. Kept in this browser only, never baked
+  // into the page source.
+  const TOKEN_STORAGE_KEY = 'bbe_access_token';
+  function loadStoredToken() {
+    try { return localStorage.getItem(TOKEN_STORAGE_KEY) || ''; } catch (e) { return ''; }
+  }
+  function storeToken(token) {
+    try { localStorage.setItem(TOKEN_STORAGE_KEY, token); } catch (e) {}
+  }
+  function clearStoredToken() {
+    try { localStorage.removeItem(TOKEN_STORAGE_KEY); } catch (e) {}
+  }
+  // window.BBE_API_TOKEN remains a deploy-time override for internal/demo
+  // builds; otherwise fall back to whatever this browser signed in with.
+  let API_TOKEN = window.BBE_API_TOKEN || loadStoredToken();
+
+  function showSignIn(message) {
+    el('signInOverlay').hidden = false;
+    const err = el('signInError');
+    if (message) { err.textContent = message; err.classList.add('show'); }
+    else { err.classList.remove('show'); err.textContent = ''; }
+    el('signInToken').focus();
+  }
+  function hideSignIn() {
+    el('signInOverlay').hidden = true;
+  }
+  async function checkToken(token) {
+    try {
+      const res = await fetch(API_BASE + '/api/config', { headers: { 'Authorization': 'Bearer ' + token } });
+      return res.ok;
+    } catch (e) {
+      return false;
+    }
+  }
 
   let state = {
     feedstock: 'wheat', energyType: 'gas', feedstockCost: 180, plantCapacity: 5000000, gasConsumption: 9.5,
@@ -538,9 +608,17 @@
       });
 
       if (!res.ok) {
+        if (res.status === 401) {
+          // The stored code was rejected (revoked, mistyped, never valid).
+          // Drop it and ask again rather than failing silently forever.
+          clearStoredToken();
+          API_TOKEN = '';
+          showError(null);
+          showSignIn('That access code is no longer valid. Please sign in again.');
+          return;
+        }
         let detail = 'Could not calculate.';
         try { const body = await res.json(); if (body.error) detail = body.error; } catch (e) {}
-        if (res.status === 401) detail = 'Session not authorised. Please sign in again.';
         showError(detail);
         return;
       }
@@ -714,8 +792,30 @@
     el('internalPanel').classList.add('show'); el('modeSubhead').textContent='Adaptavate Mode — full parameter access for internal scenario modelling';
   });
 
+  el('signInForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const candidate = el('signInToken').value.trim();
+    if (!candidate) return;
+    const submitBtn = e.target.querySelector('button');
+    submitBtn.disabled = true;
+    const ok = await checkToken(candidate);
+    submitBtn.disabled = false;
+    if (!ok) {
+      showSignIn('Access code not recognised. Check it and try again, or contact Adaptavate.');
+      return;
+    }
+    API_TOKEN = candidate;
+    storeToken(candidate);
+    hideSignIn();
+    sendCalculation();
+  });
+
   // First paint comes from the server too, so the page never shows invented numbers.
-  sendCalculation();
+  if (API_TOKEN) {
+    sendCalculation();
+  } else {
+    showSignIn();
+  }
 })();
 </script>
 
