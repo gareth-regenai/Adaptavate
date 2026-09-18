@@ -32,6 +32,21 @@ def test_base64_encoded_workbook_still_builds(test_model, tmp_path):
     assert engine.backend_name == "formulas"
 
 
+def test_line_wrapped_base64_workbook_still_builds(test_model, tmp_path):
+    """The default output of `base64` on macOS/Linux wraps at ~76 chars, and a
+    paste box can add its own stray whitespace on top. Found in practice
+    deploying to Render. Newlines aren't part of the base64 alphabet, so this
+    must be stripped before decoding, not just handled by a plain b64decode.
+    """
+    raw = base64.b64encode(test_model.read_bytes()).decode()
+    wrapped = "\n".join(raw[i:i + 76] for i in range(0, len(raw), 76))
+    encoded = tmp_path / "workbook.b64"
+    encoded.write_text(f"  {wrapped}\n\n")  # plus stray leading/trailing whitespace
+
+    engine = build_engine(encoded, backend="formulas")
+    assert engine.backend_name == "formulas"
+
+
 def test_corrupted_workbook_raises_a_clear_error(tmp_path):
     """Neither a real .xlsx nor valid base64: the classic symptom of a binary
     file pasted into a text-only field. Must not be a confusing traceback.

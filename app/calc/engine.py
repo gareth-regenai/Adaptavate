@@ -136,8 +136,14 @@ def _materialize_workbook(path: Path) -> Path:
     if header[:2] == b"PK":
         return path
 
+    # Wrapped base64 (a newline every ~76 chars) is normal - most base64
+    # tools do it by default - and paste boxes add their own whitespace
+    # quirks on top. None of that is part of the base64 alphabet, so strip
+    # all whitespace before validating rather than depending on the exact
+    # flags used to produce it.
+    compact = b"".join(path.read_bytes().split())
     try:
-        decoded = base64.b64decode(path.read_bytes(), validate=True)
+        decoded = base64.b64decode(compact, validate=True)
     except (binascii.Error, ValueError) as exc:
         raise RuntimeError(
             f"Workbook at {path} is neither a valid .xlsx nor valid base64. "
