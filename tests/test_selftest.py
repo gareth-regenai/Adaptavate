@@ -1,5 +1,6 @@
 """The startup self-test, the safety net for Adaptavate changing their model."""
 
+import base64
 import shutil
 
 import openpyxl
@@ -16,6 +17,30 @@ def test_engine_builds_on_a_good_workbook(test_model):
 def test_missing_workbook_raises(tmp_path):
     with pytest.raises(RuntimeError, match="not found"):
         build_engine(tmp_path / "nope.xlsx", backend="formulas")
+
+
+def test_base64_encoded_workbook_still_builds(test_model, tmp_path):
+    """Some hosting dashboards' 'secret file' box is a text paste field, which
+    mangles a raw .xlsx. The documented workaround is to paste base64 text
+    instead; the engine must transparently decode it. See app/calc/engine.py,
+    _materialize_workbook.
+    """
+    encoded = tmp_path / "workbook.b64"
+    encoded.write_bytes(base64.b64encode(test_model.read_bytes()))
+
+    engine = build_engine(encoded, backend="formulas")
+    assert engine.backend_name == "formulas"
+
+
+def test_corrupted_workbook_raises_a_clear_error(tmp_path):
+    """Neither a real .xlsx nor valid base64: the classic symptom of a binary
+    file pasted into a text-only field. Must not be a confusing traceback.
+    """
+    garbage = tmp_path / "corrupted.xlsx"
+    garbage.write_bytes(b"not a zip file and not base64 either !!! \xff\xfe")
+
+    with pytest.raises(RuntimeError, match="neither a valid .xlsx nor valid base64"):
+        build_engine(garbage, backend="formulas")
 
 
 def test_changed_model_refuses_to_start(test_model, tmp_path):

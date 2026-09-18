@@ -11,7 +11,11 @@ Nothing above this layer knows a spreadsheet is involved.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import logging
+import tempfile
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -117,6 +121,44 @@ class CalculationEngine:
         return result
 
 
+def _materialize_workbook(path: Path) -> Path:
+    """Return a path to a real .xlsx file, decoding one layer of base64 first.
+
+    Some hosting platforms' "secret file" dashboards are plain-text paste
+    boxes: pasting a binary .xlsx into one mangles it (see Render's Secret
+    Files - a Docker-based service's non-root user also needs group 1000 to
+    read them at all, a separate, permissions issue). The reliable path is to
+    base64-encode the workbook locally, paste that text into the secret file
+    instead, and decode it back to bytes here. If the file is already a real
+    .xlsx (its own zip magic bytes), it's returned unchanged.
+    """
+    header = path.read_bytes()[:4]
+    if header[:2] == b"PK":
+        return path
+
+    try:
+        decoded = base64.b64decode(path.read_bytes(), validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise RuntimeError(
+            f"Workbook at {path} is neither a valid .xlsx nor valid base64. "
+            "It was likely corrupted in transit (a binary file pasted into a "
+            "text field, for example). Re-encode it with "
+            "`base64 -i file.xlsx | pbcopy` (or `base64 -w0 file.xlsx`) and "
+            "paste that text as the secret file's contents instead."
+        ) from exc
+
+    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+        tmp.write(decoded)
+        tmp_path = Path(tmp.name)
+    if not zipfile.is_zipfile(tmp_path):
+        raise RuntimeError(
+            f"Workbook at {path} decoded from base64 but the result is not a "
+            "valid .xlsx (bad zip). The base64 text itself was likely "
+            "truncated or altered in transit."
+        )
+    return tmp_path
+
+
 def build_engine(workbook_path: str | Path, backend: str = "formulas") -> CalculationEngine:
     """Create the engine and prove the workbook still behaves as expected.
 
@@ -130,6 +172,7 @@ def build_engine(workbook_path: str | Path, backend: str = "formulas") -> Calcul
             f"Workbook not found at {path}. Place Adaptavate's file in model/ "
             "and set WORKBOOK_PATH. See model/README.md."
         )
+    path = _materialize_workbook(path)
 
     if backend == "formulas":
         from app.calc.backends.formulas_backend import FormulasBackend
